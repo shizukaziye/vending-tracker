@@ -53,6 +53,8 @@ th.num{text-align:right}
 .g-pokemon{background:var(--pkm)} .g-riftbound{background:var(--rift)} .g-onepiece{background:var(--op)} .g-other{background:var(--dim)}
 .pname{font-weight:600}
 .sub{font-size:12px;color:var(--dim)}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--border);border-radius:999px;padding:0 7px;margin:2px 4px 0 0;color:var(--accent);background:var(--panel2);cursor:pointer}
+.tag:hover{border-color:var(--accent)}
 .actions{white-space:nowrap;text-align:right}
 .actions button{margin-left:4px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:14px}
@@ -134,6 +136,7 @@ footer .note{font-size:12px;color:var(--dim)}
         <div><label>Payment method</label><input id="f_payment" list="dl_payment" placeholder="Cash, card…"></div>
         <div><label>Bought from</label><input id="f_source" list="dl_source" placeholder="Costco, Distributor…"></div>
         <div><label>Location (where it is)</label><input id="f_location" list="dl_location" placeholder="Home, Machine – 5th St…"></div>
+        <div class="wide"><label>Tags (comma-separated)</label><input id="f_tags" placeholder="e.g. restock-soon, japanese, promo"></div>
         <div class="wide"><label>Notes</label><input id="f_notes" placeholder="optional"></div>
       </div>
       <div class="formbar">
@@ -147,6 +150,8 @@ footer .note{font-size:12px;color:var(--dim)}
       <input id="q" placeholder="Search…" oninput="renderAll()">
       <select id="fl_game" onchange="renderAll()"><option value="">All games</option></select>
       <select id="fl_loc" onchange="renderAll()"><option value="">All locations</option></select>
+      <select id="fl_tag" onchange="renderAll()"><option value="">All tags</option></select>
+      <select id="fl_channel" onchange="renderAll()" style="display:none"><option value="">All channels</option></select>
       <select id="fl_status" onchange="renderAll()">
         <option value="">Any status</option>
         <option value="stock">In stock</option>
@@ -159,7 +164,8 @@ footer .note{font-size:12px;color:var(--dim)}
     <div id="view_stats" style="display:none">
       <div class="tiles" id="stattiles"></div>
       <div class="panel"><div class="subh">By location</div><div class="tblwrap" id="loctbl"></div>
-        <div class="subh">By game</div><div class="tblwrap" id="gametbl"></div></div>
+        <div class="subh">By game</div><div class="tblwrap" id="gametbl"></div>
+        <div class="subh">By sale channel</div><div class="tblwrap" id="chantbl"></div></div>
     </div>
 
     <footer>
@@ -178,6 +184,8 @@ footer .note{font-size:12px;color:var(--dim)}
     <div><label>Quantity sold</label><input id="s_qty" type="number" min="1" step="1" value="1"></div>
     <div><label>Sale price per unit ($)</label><input id="s_price" type="number" min="0" step="0.01"></div>
     <div><label>Sale date</label><input id="s_date" type="date"></div>
+    <div><label>Channel</label><input id="s_channel" list="dl_channel" placeholder="Machine, eBay…"></div>
+    <div><label>Fees ($, total)</label><input id="s_fee" type="number" min="0" step="0.01" placeholder="0.00"></div>
     <div><label>Note</label><input id="s_note" placeholder="optional"></div>
   </div>
   <div class="dfoot">
@@ -191,6 +199,10 @@ footer .note{font-size:12px;color:var(--dim)}
   <option value="Zelle"><option value="PayPal"><option value="Venmo">
 </datalist>
 <datalist id="dl_source"></datalist>
+<datalist id="dl_channel">
+  <option value="Machine"><option value="eBay"><option value="TCGplayer">
+  <option value="Local"><option value="Online">
+</datalist>
 <datalist id="dl_location"></datalist>
 
 <script>
@@ -314,25 +326,38 @@ function locations() {
 function sources() {
   return [...new Set(DOC.items.map(i => i.source).filter(Boolean))].sort();
 }
+function allTags() {
+  return [...new Set(DOC.items.flatMap(i => i.tags || []))].sort();
+}
+function channels() {
+  const set = new Set(['Machine']);
+  for (const it of DOC.items) for (const s of (it.sales || [])) if (s.channel) set.add(s.channel);
+  return [...set].sort();
+}
 
 // ---------- filters ----------
 function passFilter(it) {
   const q = $('q').value.trim().toLowerCase();
-  if (q && !((it.product || '') + ' ' + (it.category || '') + ' ' + (it.notes || '') + ' ' + (it.location || '') + ' ' + (it.source || '')).toLowerCase().includes(q)) return false;
+  if (q && !((it.product || '') + ' ' + (it.category || '') + ' ' + (it.notes || '') + ' ' + (it.location || '') + ' ' + (it.source || '') + ' ' + (it.tags || []).join(' ')).toLowerCase().includes(q)) return false;
   const g = $('fl_game').value; if (g && it.game !== g) return false;
   const l = $('fl_loc').value; if (l && it.location !== l) return false;
+  const t = $('fl_tag').value; if (t && !(it.tags || []).includes(t)) return false;
   const st = $('fl_status').value;
   if (st === 'stock' && remaining(it) <= 0) return false;
   if (st === 'soldout' && remaining(it) > 0) return false;
   return true;
 }
 function refreshFilterOptions() {
-  const keepG = $('fl_game').value, keepL = $('fl_loc').value;
+  const keepG = $('fl_game').value, keepL = $('fl_loc').value, keepT = $('fl_tag').value, keepC = $('fl_channel').value;
   $('fl_game').innerHTML = '<option value="">All games</option>' + GAMES.map(g => `<option${g === keepG ? ' selected' : ''}>${g}</option>`).join('');
   $('fl_loc').innerHTML = '<option value="">All locations</option>' + locations().map(l => `<option${l === keepL ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  $('fl_tag').innerHTML = '<option value="">All tags</option>' + allTags().map(t => `<option${t === keepT ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  $('fl_channel').innerHTML = '<option value="">All channels</option>' + channels().map(c => `<option${c === keepC ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  $('fl_channel').style.display = TAB === 'sales' ? '' : 'none';
   $('dl_location').innerHTML = locations().map(l => `<option value="${esc(l)}">`).join('');
   $('dl_source').innerHTML = sources().map(s => `<option value="${esc(s)}">`).join('');
 }
+function setTagFilter(t) { refreshFilterOptions(); $('fl_tag').value = t; renderAll(); }
 
 // ---------- tabs ----------
 let TAB = 'inv';
@@ -363,7 +388,8 @@ function renderInventory() {
     const rem = remaining(it);
     h += `<tr>
       <td><span class="gchip ${gclass(it.game)}">${esc(it.game)}</span><span class="pname">${esc(it.product)}</span>
-        <div class="sub">${esc(it.category || '')}${it.notes ? ' · ' + esc(it.notes) : ''}</div></td>
+        <div class="sub">${esc(it.category || '')}${it.notes ? ' · ' + esc(it.notes) : ''}</div>
+        ${(it.tags || []).map(t => `<span class="tag" onclick="setTagFilter(this.textContent)">${esc(t)}</span>`).join('')}</td>
       <td class="num">${rem <= 0 ? '<span class="dim">0</span>' : rem}<span class="dim">/${it.qty}</span></td>
       <td class="num">${money(it.unitCost || 0)}</td>
       <td class="num hidemob">${money(rem * (it.unitCost || 0))}</td>
@@ -378,30 +404,33 @@ function renderInventory() {
   $('invtbl').innerHTML = h + '</table>';
 }
 function renderSales() {
-  const rows = allSales().filter(x => passFilter(x.it));
+  const ch = $('fl_channel').value;
+  const rows = allSales().filter(x => passFilter(x.it) && (!ch || (x.s.channel || '') === ch));
   if (!rows.length) { $('salestbl').innerHTML = '<div class="empty">No sales recorded yet.</div>'; return; }
-  let h = `<table><tr><th>Date</th><th>Product</th><th class="num">Qty</th><th class="num">Sale/unit</th><th class="num">Revenue</th><th class="num hidemob">Cost</th><th class="num">Profit</th><th class="actions"></th></tr>`;
-  let tRev = 0, tCost = 0;
+  let h = `<table><tr><th>Date</th><th>Product</th><th class="hidemob">Channel</th><th class="num">Qty</th><th class="num">Sale/unit</th><th class="num">Revenue</th><th class="num hidemob">Cost</th><th class="num hidemob">Fees</th><th class="num">Profit</th><th class="actions"></th></tr>`;
+  let tRev = 0, tCost = 0, tFee = 0;
   for (const {it, s} of rows) {
-    const rev = s.qty * s.unitPrice, cost = s.qty * (it.unitCost || 0), p = rev - cost;
-    tRev += rev; tCost += cost;
+    const rev = s.qty * s.unitPrice, cost = s.qty * (it.unitCost || 0), fee = s.fee || 0, p = rev - cost - fee;
+    tRev += rev; tCost += cost; tFee += fee;
     h += `<tr>
       <td><span class="sub">${esc(s.date || '')}</span></td>
       <td><span class="gchip ${gclass(it.game)}">${esc(it.game)}</span>${esc(it.product)}${s.note ? `<div class="sub">${esc(s.note)}</div>` : ''}</td>
+      <td class="hidemob"><span class="sub">${esc(s.channel || '')}</span></td>
       <td class="num">${s.qty}</td>
       <td class="num">${money(s.unitPrice)}</td>
       <td class="num">${money(rev)}</td>
       <td class="num hidemob">${money(cost)}</td>
+      <td class="num hidemob">${fee ? money(fee) : '<span class="dim">—</span>'}</td>
       <td class="num ${p >= 0 ? 'good' : 'bad'}">${money(p)}</td>
       <td class="actions"><button class="small danger" onclick="delSale('${it.id}','${s.id}')">✕</button></td></tr>`;
   }
-  const tp = tRev - tCost;
-  h += `<tr><td colspan="4" class="dim">Total (filtered)</td><td class="num">${money(tRev)}</td><td class="num hidemob">${money(tCost)}</td><td class="num ${tp >= 0 ? 'good' : 'bad'}">${money(tp)}</td><td></td></tr>`;
+  const tp = tRev - tCost - tFee;
+  h += `<tr><td colspan="5" class="dim">Total (filtered)</td><td class="num">${money(tRev)}</td><td class="num hidemob">${money(tCost)}</td><td class="num hidemob">${money(tFee)}</td><td class="num ${tp >= 0 ? 'good' : 'bad'}">${money(tp)}</td><td></td></tr>`;
   $('salestbl').innerHTML = h + '</table>';
 }
 function renderStats() {
-  let unitsOnHand = 0, costOnHand = 0, totalSpent = 0, revenue = 0, costSold = 0;
-  const byLoc = {}, byGame = {};
+  let unitsOnHand = 0, costOnHand = 0, totalSpent = 0, revenue = 0, costSold = 0, fees = 0;
+  const byLoc = {}, byGame = {}, byChan = {};
   for (const it of DOC.items) {
     const rem = remaining(it), uc = it.unitCost || 0;
     unitsOnHand += rem; costOnHand += rem * uc; totalSpent += it.qty * uc;
@@ -410,16 +439,19 @@ function renderStats() {
     const G = byGame[it.game || 'Other'] ||= {units: 0, cost: 0, rev: 0, profit: 0};
     G.units += rem; G.cost += rem * uc;
     for (const s of (it.sales || [])) {
-      revenue += s.qty * s.unitPrice; costSold += s.qty * uc;
-      G.rev += s.qty * s.unitPrice; G.profit += s.qty * (s.unitPrice - uc);
+      const rev = s.qty * s.unitPrice, cost = s.qty * uc, fee = s.fee || 0;
+      revenue += rev; costSold += cost; fees += fee;
+      G.rev += rev; G.profit += rev - cost - fee;
+      const C = byChan[s.channel || '(none)'] ||= {units: 0, rev: 0, fees: 0, profit: 0};
+      C.units += s.qty; C.rev += rev; C.fees += fee; C.profit += rev - cost - fee;
     }
   }
-  const profit = revenue - costSold;
+  const profit = revenue - costSold - fees;
   const tiles = [
     [money(costOnHand), 'Inventory on hand (at cost)'],
     [unitsOnHand.toLocaleString(), 'Units on hand'],
     [money(revenue), 'Revenue (all time)'],
-    [`<span class="${profit >= 0 ? 'good' : 'bad'}">${money(profit)}</span>`, 'Realized profit'],
+    [`<span class="${profit >= 0 ? 'good' : 'bad'}">${money(profit)}</span>`, 'Realized profit (after fees)'],
     [revenue > 0 ? (100 * profit / revenue).toFixed(1) + '%' : '—', 'Margin on sales'],
     [money(totalSpent), 'Total ever spent'],
   ];
@@ -432,6 +464,11 @@ function renderStats() {
   $('gametbl').innerHTML = `<table><tr><th>Game</th><th class="num">Units on hand</th><th class="num">Cost value</th><th class="num">Revenue</th><th class="num">Profit</th></tr>` +
     Object.entries(byGame).map(([g, v]) =>
       `<tr><td><span class="gchip ${gclass(g)}">${esc(g)}</span></td><td class="num">${v.units}</td><td class="num">${money(v.cost)}</td><td class="num">${money(v.rev)}</td><td class="num ${v.profit >= 0 ? 'good' : 'bad'}">${money(v.profit)}</td></tr>`).join('') + '</table>';
+  const chanRows = Object.entries(byChan).sort((a, b) => b[1].rev - a[1].rev);
+  $('chantbl').innerHTML = chanRows.length
+    ? `<table><tr><th>Channel</th><th class="num">Units sold</th><th class="num">Revenue</th><th class="num">Fees</th><th class="num">Profit</th></tr>` +
+      chanRows.map(([c, v]) => `<tr><td>${esc(c)}</td><td class="num">${v.units}</td><td class="num">${money(v.rev)}</td><td class="num">${money(v.fees)}</td><td class="num ${v.profit >= 0 ? 'good' : 'bad'}">${money(v.profit)}</td></tr>`).join('') + '</table>'
+    : '<div class="empty">No sales yet.</div>';
 }
 
 // ---------- add / edit ----------
@@ -450,6 +487,7 @@ function openForm(id) {
   $('f_payment').value = it?.payment || '';
   $('f_source').value = it?.source || '';
   $('f_location').value = it?.location || '';
+  $('f_tags').value = (it?.tags || []).join(', ');
   $('f_notes').value = it?.notes || '';
   refreshTotal();
   $('f_product').focus();
@@ -474,6 +512,7 @@ function submitForm() {
     payment: $('f_payment').value.trim(),
     source: $('f_source').value.trim(),
     location: $('f_location').value.trim(),
+    tags: $('f_tags').value.split(',').map(t => t.trim()).filter(Boolean),
     notes: $('f_notes').value.trim(),
   };
   if (editId) {
@@ -501,6 +540,7 @@ function openSale(id) {
   $('selltitle').textContent = `Sell: ${it.product} (${remaining(it)} left)`;
   $('s_qty').value = 1; $('s_qty').max = remaining(it);
   $('s_price').value = ''; $('s_date').value = today(); $('s_note').value = '';
+  $('s_channel').value = 'Machine'; $('s_fee').value = '';
   $('selldlg').showModal();
 }
 function submitSale() {
@@ -509,7 +549,13 @@ function submitSale() {
   const price = +$('s_price').value;
   if (qty < 1 || qty > remaining(it)) { alert(`Quantity must be 1–${remaining(it)}.`); return; }
   if (!(price >= 0) || $('s_price').value === '') { alert('Enter the sale price per unit.'); return; }
-  (it.sales ||= []).push({id: uid(), qty, unitPrice: price, date: $('s_date').value || today(), note: $('s_note').value.trim()});
+  (it.sales ||= []).push({
+    id: uid(), qty, unitPrice: price,
+    date: $('s_date').value || today(),
+    channel: $('s_channel').value.trim(),
+    fee: Math.max(0, +$('s_fee').value || 0),
+    note: $('s_note').value.trim(),
+  });
   $('selldlg').close();
   markDirty();
 }
