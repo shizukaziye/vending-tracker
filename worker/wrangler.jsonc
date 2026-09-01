@@ -4,7 +4,7 @@
   "compatibility_date": "2026-08-01",
   "kv_namespaces": [
     // id is replaced with the real namespace id at deploy time
-    { "binding": "DATA", "id": "LOCAL_PLACEHOLDER" }
+    { "binding": "DATA", "id": "96bff8bbbfbc45d2a53741a200b154cf" }
   ]
   // secret: AUTH_TOKEN  (wrangler secret put AUTH_TOKEN)
 }
