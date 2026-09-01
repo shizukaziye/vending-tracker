@@ -1,0 +1,10 @@
+{
+  "name": "vending-tracker-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "kv_namespaces": [
+    // id is replaced with the real namespace id at deploy time
+    { "binding": "DATA", "id": "LOCAL_PLACEHOLDER" }
+  ]
+  // secret: AUTH_TOKEN  (wrangler secret put AUTH_TOKEN)
+}
