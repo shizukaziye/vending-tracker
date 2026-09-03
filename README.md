@@ -5,6 +5,22 @@ personal collection. Every item is acquired, then either sold or traded. Stock o
 valued at a set share of TCGplayer market price (90% by default).
 
 - **Page** (`index.html`): one self-contained file on GitHub Pages.
+  - **Cards view** (default): a tile per product with the TCGplayer image, set, rarity and
+    collector number, condition and finish, market price with the change since the last price
+    snapshot, quantity on hand, cost and gain, and a ⋮ menu (Sell, Trade, move between books,
+    Market price, Details, Edit, Delete). Clicking the image opens Details with a price history
+    sparkline. List view is the old table; hover a row for details.
+  - **Facets** on the left, all derived automatically and combinable: status, game, type (sealed or
+    single), product kind, set, rarity, printing (standard, showcase, promo, overnumbered,
+    signature), condition, finish, language, source, location, who paid, market-price state, and
+    your own tags. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
+  - **Overview strip** at the top of every view: value at 90%, unrealized gain, day and week change,
+    cost basis, total spent, realized profit, return on spend, units in transit. The **Overview**
+    tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
+    source, who paid, condition, spend by month, sales and trades by month, and channel. It follows
+    the active filters, so you can get an overview of one set or one game.
+  - **Price history**: every price refresh (page button or the nightly import) records one point
+    per product per day; changes and movers come from that.
   - **Two books.** Business is the primary inventory. Personal collection is kept apart.
     Moving something to the collection ("→ PC") books a sale from the business at the
     valuation price and creates the twin item in the personal book at that cost. "→ Biz"

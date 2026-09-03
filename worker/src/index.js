@@ -1,6 +1,6 @@
 // vending-tracker-api — stores one JSON document in KV, guarded by a bearer token.
-// GET  /data                      -> the document {rev, items, settings, savedAt}
-// PUT  /data {baseRev, items, settings} -> saves if baseRev matches current rev, else 409 with current doc
+// GET  /data                      -> the document {rev, items, settings, history, savedAt}
+// PUT  /data {baseRev, items, settings, history} -> saves if baseRev matches current rev, else 409 with current doc
 // GET  /market/search?q=&line=    -> TCGplayer product candidates with market prices (proxied; browsers can't call it directly)
 // GET  /market/price?ids=1,2,3    -> fresh market price per TCGplayer product id
 
@@ -103,7 +103,7 @@ export default {
       if ((body.baseRev ?? -1) !== cur.rev) {
         return json({ error: 'conflict', doc: cur }, 409, cors);
       }
-      const doc = { rev: cur.rev + 1, items: body.items, settings: body.settings ?? cur.settings ?? {}, savedAt: new Date().toISOString() };
+      const doc = { rev: cur.rev + 1, items: body.items, settings: body.settings ?? cur.settings ?? {}, history: body.history ?? cur.history ?? {}, savedAt: new Date().toISOString() };
       await env.DATA.put('doc', JSON.stringify(doc));
       return json({ ok: true, rev: doc.rev }, 200, cors);
     }
