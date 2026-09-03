@@ -28,7 +28,8 @@ async function tcgSearch(q, line) {
   });
   if (!r.ok) throw new Error(`tcgplayer search HTTP ${r.status}`);
   const d = await r.json();
-  const res = d?.results?.[0]?.results || [];
+  const kw = { pokemon: 'pokemon', riftbound: 'riftbound', 'one piece card game': 'one piece' }[line] || null;
+  const res = (d?.results?.[0]?.results || []).filter((x) => !kw || (x.productLineName || '').toLowerCase().includes(kw));
   return res.map((x) => ({
     productId: Math.round(x.productId), productName: x.productName, setName: x.setName,
     productLine: x.productLineName, marketPrice: x.marketPrice ?? null, lowestPrice: x.lowestPrice ?? null,
