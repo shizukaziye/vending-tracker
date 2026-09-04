@@ -67,6 +67,44 @@ th.num{text-align:right}
 .ov .s{font-size:11.5px;margin-top:2px}
 /* toolbar */
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.toolbar.pin{position:sticky;top:0;z-index:40;background:var(--bg);padding:8px 0 6px;margin:0 -4px 10px;padding-left:4px;padding-right:4px;border-bottom:1px solid var(--border)}
+#ovmini{display:none;gap:14px;font-size:12.5px;color:var(--dim);white-space:nowrap;align-items:baseline}
+#ovmini b{color:var(--text);font-variant-numeric:tabular-nums}
+.toolbar.pin.scrolled #ovmini{display:flex}
+.dens{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.dens button{border:0;border-radius:0;padding:5px 9px;font-size:12px;color:var(--dim);background:transparent}
+.dens button.on{background:#123145;color:var(--accent)}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:6px}
+.kv div{background:#12151c;border-radius:7px;padding:3px 6px;min-width:0}
+.kv .l{font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--dim)}
+.kv .v{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.card.g-pokemon{border-left:3px solid var(--pkm)} .card.g-riftbound{border-left:3px solid var(--rift)} .card.g-onepiece{border-left:3px solid var(--op)} .card.g-other{border-left:3px solid var(--dim)}
+.card .img{position:relative}
+.card .hov{position:absolute;left:0;right:0;bottom:0;display:none;gap:6px;justify-content:center;padding:8px;background:linear-gradient(transparent,rgba(13,16,23,.92))}
+.card .hov button{padding:4px 10px;font-size:12px;border-radius:999px;background:rgba(27,32,48,.95)}
+@media (hover:hover){.card:hover .hov{display:flex}}
+.grid.s{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.grid.s .card{padding:8px} .grid.s .ttl{font-size:13px} .grid.s .set,.grid.s .meta,.grid.s .kv,.grid.s .locs{display:none} .grid.s .price{font-size:16px;margin-top:6px} .grid.s .qty{font-size:12.5px} .grid.s .kebab{width:28px;height:28px;font-size:15px}
+.grid.l{grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.grid.l .ttl{font-size:18px} .grid.l .price{font-size:26px}
+.facets .fs{margin:2px 0 4px;padding:4px 8px;font-size:12px}
+.facets .reset{font-size:10.5px;color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0;margin-left:6px}
+.rq{display:flex;gap:10px;align-items:center;padding:8px 6px;border-bottom:1px solid #1d2230}
+.rq img{width:44px;height:60px;object-fit:contain;background:#0b0e14;border-radius:5px;flex:none}
+.rq .n{flex:1;min-width:0} .rq .n .sub{display:block}
+.rq .pr{font-variant-numeric:tabular-nums;white-space:nowrap}
+.dtabs{display:flex;gap:4px;margin:10px 0 8px}
+.dtabs button{padding:4px 10px;font-size:12.5px;border-radius:6px;background:transparent;color:var(--dim)}
+.dtabs button.on{background:#123145;color:var(--accent);border-color:#1d5f8a}
+.rng{display:inline-flex;gap:4px;margin:6px 0}
+.rng button{padding:2px 8px;font-size:11.5px;border-radius:6px;background:transparent;color:var(--dim)}
+.rng button.on{background:#123145;color:var(--accent)}
+.chart{background:#0b0e14;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px}
+.chart svg{display:block;width:100%;height:190px}
+.chart .cap{display:flex;justify-content:space-between;font-size:11.5px;color:var(--dim);margin-top:4px}
+.bottombar{display:none}
+kbd{background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font:12px ui-monospace,Menlo,monospace}
+.helpgrid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px}
 .tabs{display:flex;gap:4px;flex-wrap:wrap}
 .tabs button{border-radius:8px;background:transparent;border-color:transparent;color:var(--dim);padding:6px 12px}
 .tabs button.active{color:var(--accent);background:var(--panel);border-color:var(--border)}
@@ -178,19 +216,33 @@ footer .note{font-size:12px;color:var(--dim)}
 #tip .t{font-weight:700;margin-bottom:4px}
 #tip .row,.det .row{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #232838}
 #tip .row span:last-child,.det .row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
-.det{display:grid;grid-template-columns:200px 1fr;gap:16px}
+.det{display:grid;grid-template-columns:260px 1fr;gap:18px}
 .det img{width:100%;border-radius:10px;background:#0d1017}
 @media (max-width:700px){
   .det{grid-template-columns:1fr}
   .hidemob{display:none}
   td,th{padding:6px 5px}
-  body{font-size:14px}
-  .facets{display:none;position:static;width:100%;max-height:none}
+  body{font-size:14px;padding-bottom:84px}
+  .toolbar .tabs{display:none}
+  .toolbar.pin{top:0}
+  .addwrap{flex:1 1 100%;max-width:none;order:-1}
+  .facets{display:none;position:fixed;inset:0 auto 0 0;width:min(86vw,320px);max-height:none;z-index:70;border-radius:0 12px 12px 0;box-shadow:0 0 40px rgba(0,0,0,.6);padding-top:44px}
   .facets.open{display:block}
+  .facets .closebtn{display:block;position:absolute;top:8px;right:8px}
   .main{flex-direction:column}
-  .grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  .grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .grid.s{grid-template-columns:repeat(3,1fr)}
   .card .ttl{font-size:14px} .card .price{font-size:18px}
+  .card .kebab,.acc,button.small{min-height:36px;min-width:36px}
+  .bottombar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .bottombar button{flex:1;border:0;background:transparent;color:var(--dim);font-size:11px;padding:6px 2px;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .bottombar button span{font-size:17px}
+  .bottombar button.on{color:var(--accent);background:#123145}
+  .dens{display:none}
+  .ov{display:flex;overflow-x:auto;gap:8px;padding-bottom:4px;scroll-snap-type:x mandatory}
+  .ov .t{min-width:46vw;scroll-snap-align:start}
 }
+.facets .closebtn{display:none}
 </style>
 </head>
 <body>
@@ -218,7 +270,7 @@ footer .note{font-size:12px;color:var(--dim)}
   <div id="app" style="display:none">
     <div class="ov" id="overview"></div>
 
-    <div class="toolbar">
+    <div class="toolbar pin" id="toolbar">
       <div class="tabs">
         <button id="tab_grid" class="active" onclick="setView('grid')">Cards</button>
         <button id="tab_list" onclick="setView('list')">List</button>
@@ -236,7 +288,10 @@ footer .note{font-size:12px;color:var(--dim)}
         <option value="name">Name</option><option value="qty">Quantity ↓</option>
       </select>
       <label class="chk"><input type="checkbox" id="hideGone" checked onchange="renderAll()">hide sold out</label>
+      <div class="dens" id="dens" title="Card size"><button data-d="s">S</button><button data-d="m" class="on">M</button><button data-d="l">L</button></div>
       <button class="small" id="facetToggle" onclick="document.getElementById('facets').classList.toggle('open')" style="display:none">Filters</button>
+      <button class="small" id="reviewBtn" onclick="openReview()" style="display:none">Review</button>
+      <div id="ovmini"></div>
       <div class="addwrap"><input id="addq" placeholder="Add: type a card or product… (e.g. ahri)" autocomplete="off"><div id="addmenu"></div></div>
       <span class="sub" id="count"></span>
       <button class="small ghost" onclick="openForm()" title="Add something by hand">manual</button>
@@ -345,6 +400,22 @@ footer .note{font-size:12px;color:var(--dim)}
   <div class="dfoot"><span class="sub" id="m_current"></span><span class="spacer"></span><button onclick="document.getElementById('matchdlg').close()">Close</button></div>
 </dialog>
 
+<nav class="bottombar" id="bottombar">
+  <button data-v="grid" onclick="setView('grid')"><span>🃏</span>Cards</button><button data-v="list" onclick="setView('list')"><span>☰</span>List</button>
+  <button data-v="txn" onclick="setView('txn')"><span>💵</span>Money</button><button data-v="stats" onclick="setView('stats')"><span>📊</span>Overview</button>
+  <button onclick="document.getElementById('facets').classList.toggle('open')"><span>⚙︎</span>Filters</button>
+</nav>
+<dialog id="helpdlg">
+  <h3>Keyboard shortcuts</h3>
+  <div class="helpgrid"><kbd>/</kbd><span>Focus the Add box</span><kbd>1</kbd>–<kbd>6</kbd><span>Cards · List · Sold · Traded · Transactions · Overview</span><kbd>f</kbd><span>Show / hide the filters</span><kbd>r</kbd><span>Open the review queue</span><kbd>Esc</kbd><span>Close menus and dialogs</span><kbd>?</kbd><span>This list</span></div>
+  <div class="dfoot"><button onclick="document.getElementById('helpdlg').close()">Close</button></div>
+</dialog>
+<dialog id="reviewdlg" class="wide">
+  <h3 id="reviewtitle">Review matches</h3>
+  <p class="sub" style="margin:0 0 8px">Each product the importer matched on its own. Accept if the printing is right, or Change to pick another.</p>
+  <div id="reviewlist" style="max-height:60vh;overflow:auto"></div>
+  <div class="dfoot"><button class="primary" onclick="acceptAllReview()">Accept all shown</button><span class="spacer"></span><button onclick="document.getElementById('reviewdlg').close()">Close</button></div>
+</dialog>
 <dialog id="valdlg">
   <h3 id="valtitle">Override value</h3>
   <p class="sub" id="valhint" style="margin:0 0 10px"></p>
@@ -354,7 +425,7 @@ footer .note{font-size:12px;color:var(--dim)}
   <div class="dfoot"><button class="danger" onclick="clearValueOverride()">Back to market × %</button><span class="spacer"></span><button onclick="document.getElementById('valdlg').close()">Cancel</button><button class="primary" onclick="submitValueOverride()">Save</button></div>
 </dialog>
 
-<dialog id="detdlg" class="wide">
+<dialog id="detdlg" class="wide" style="max-width:820px">
   <h3 id="dettitle">Details</h3>
   <div id="detbody" class="det"></div>
   <div class="dfoot"><span class="spacer"></span><button onclick="document.getElementById('detdlg').close()">Close</button></div>
@@ -378,6 +449,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const money0 = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+const compact = n => Math.abs(n) >= 1000 ? money0(n) : money(n);
 const pct = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const today = () => new Date().toISOString().slice(0, 10);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
@@ -547,7 +619,7 @@ const FACETS = [
   ['printing', 'Printing'], ['condition', 'Condition'], ['finish', 'Finish'], ['language', 'Language'],
   ['source', 'Source'], ['location', 'Location'], ['payer', 'Paid by'], ['market', 'Market price'], ['value', 'Valuation'], ['tags', 'Tags'],
 ];
-const state = {view: 'grid', f: {}, expanded: new Set(), collapsed: new Set()};
+const state = {view: 'grid', f: {}, expanded: new Set(), collapsed: new Set(JSON.parse((() => { try { return localStorage.getItem('vt_fc') || '[]'; } catch { return '[]'; } })())), fq: {}};
 function hasF(key, val) { return !!state.f[key]?.has(val); }
 function toggleF(key, val) { const s = (state.f[key] ||= new Set()); s.has(val) ? s.delete(val) : s.add(val); if (!s.size) delete state.f[key]; renderAll(); }
 function matchesFacets(fx, skip) {
@@ -579,19 +651,25 @@ function renderFacets() {
     for (const sel of (state.f[key] || [])) if (!counts.has(sel)) counts.set(sel, 0);
     if (!counts.size) continue;
     const rows = [...counts.entries()].sort((a, b) => (hasF(key, b[0]) - hasF(key, a[0])) || b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
-    const collapsed = state.collapsed.has(key);
-    h += `<h4 onclick="toggleCollapse('${key}')"><span>${label}</span><span>${collapsed ? '+' : '−'}</span></h4>`;
+    const collapsed = state.collapsed.has(key), active = state.f[key]?.size;
+    h += `<h4 onclick="toggleCollapse('${key}')"><span>${label}${active ? `<span class="reset" onclick="event.stopPropagation();delete state.f['${key}'];renderAll()">reset</span>` : ''}</span><span>${collapsed ? '+' : '−'}</span></h4>`;
     if (collapsed) continue;
-    const limit = state.expanded.has(key) ? 999 : 8;
-    for (const [val, n] of rows.slice(0, limit)) h += `<div class="fv ${hasF(key, val) ? 'on' : ''}" onclick="toggleF('${key}', ${jsArg(val)})"><span class="k">${esc(val)}</span><span class="n">${n}</span></div>`;
-    if (rows.length > limit) h += `<div class="fv more" onclick="state.expanded.add('${key}');renderAll()">+${rows.length - limit} more</div>`;
+    let shown = rows;
+    if (rows.length > 8) {
+      const fq = (state.fq[key] || '').toLowerCase();
+      h += `<input class="fs" placeholder="Filter ${label.toLowerCase()}…" value="${esc(state.fq[key] || '')}" oninput="state.fq['${key}']=this.value;renderFacets();this.focus();this.setSelectionRange(this.value.length,this.value.length)">`;
+      if (fq) shown = rows.filter(([v]) => String(v).toLowerCase().includes(fq));
+    }
+    const limit = state.expanded.has(key) || state.fq[key] ? 999 : 8;
+    for (const [val, n] of shown.slice(0, limit)) h += `<div class="fv ${hasF(key, val) ? 'on' : ''}" onclick="toggleF('${key}', ${jsArg(val)})"><span class="k">${esc(val)}</span><span class="n">${n}</span></div>`;
+    if (shown.length > limit) h += `<div class="fv more" onclick="state.expanded.add('${key}');renderAll()">+${shown.length - limit} more</div>`;
   }
-  $('facets').innerHTML = h || '<div class="sub">No items yet.</div>';
+  $('facets').innerHTML = `<button class="small closebtn" onclick="document.getElementById('facets').classList.remove('open')">✕</button>` + (h || '<div class="sub">No items yet.</div>');
   const chips = [];
   for (const [k, set] of Object.entries(state.f)) for (const v of set) chips.push(`<span class="ac" onclick="toggleF('${k}', ${jsArg(v)})">${esc(FACETS.find(f => f[0] === k)?.[1] || k)}: ${esc(v)}</span>`);
   $('activeChips').innerHTML = chips.length ? chips.join('') + `<button class="small ghost" onclick="state.f={};renderAll()">Clear all</button>` : '';
 }
-function toggleCollapse(key) { state.collapsed.has(key) ? state.collapsed.delete(key) : state.collapsed.add(key); renderAll(); }
+function toggleCollapse(key) { state.collapsed.has(key) ? state.collapsed.delete(key) : state.collapsed.add(key); try { localStorage.setItem('vt_fc', JSON.stringify([...state.collapsed])); } catch {} renderAll(); }
 
 // ---------- views ----------
 function setView(v) {
@@ -629,7 +707,14 @@ function renderAll() {
   if (state.view === 'txn') renderTxn();
   if (state.view === 'stats') renderStats();
   $('revnote').textContent = 'rev ' + DOC.rev + ' · ' + BOOK_NAMES[BOOK] + ' · inventory valued at ' + valuePct() + '% of market';
+  const nrev = new Set(DOC.items.filter(i => inBook(i) && i.market?.auto && onHand(i) > 0).map(posKey)).size;
+  $('reviewBtn').style.display = nrev ? '' : 'none'; $('reviewBtn').textContent = `Review (${nrev})`;
+  document.querySelectorAll('#bottombar button[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === state.view));
+  $('gridwrap').className = 'grid ' + DENSITY;
 }
+let DENSITY = (() => { try { return localStorage.getItem('vt_density') || 'm'; } catch { return 'm'; } })();
+$('dens').addEventListener('click', e => { const b = e.target.closest('button[data-d]'); if (!b) return; DENSITY = b.dataset.d; try { localStorage.setItem('vt_density', DENSITY); } catch {} document.querySelectorAll('#dens button').forEach(x => x.classList.toggle('on', x.dataset.d === DENSITY)); renderAll(); });
+document.querySelectorAll('#dens button').forEach(x => x.classList.toggle('on', x.dataset.d === DENSITY));
 function refreshDatalists() {
   $('dl_location').innerHTML = [...new Set(DOC.items.map(i => i.location).filter(Boolean))].sort().map(l => `<option value="${esc(l)}">`).join('');
   $('dl_source').innerHTML = [...new Set(DOC.items.map(i => i.source).filter(Boolean))].sort().map(s => `<option value="${esc(s)}">`).join('');
@@ -672,13 +757,15 @@ function renderOverview() {
     [`${t.incomingUnits}`, 'Units in transit', money(t.incomingCost) + ' cost'],
   ];
   $('overview').innerHTML = tiles.map(([v, l, s]) => `<div class="t"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('');
+  $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
 }
 
 // ---------- grid ----------
-function chgHtml(it) {
+function chgHtml(it, quiet) {
   const c = changeFor(it);
-  if (!c) return `<span class="chg flat">—</span>`;
+  if (!c) return quiet ? '' : `<span class="chg flat">—</span>`;
   const cls = c.abs > 0.005 ? 'up' : c.abs < -0.005 ? 'down' : 'flat', arrow = cls === 'up' ? '▲' : cls === 'down' ? '▼' : '';
+  if (quiet && cls === 'flat') return '';
   return `<span class="chg ${cls}" title="since ${esc(c.since)}">${arrow} ${c.abs >= 0 ? '+' : '-'}${money(Math.abs(c.abs))}${c.pct != null ? ` (${pct(c.pct)})` : ''}</span>`;
 }
 // ---------- positions: one tile per product, many lots (order lines) underneath ----------
@@ -731,15 +818,17 @@ function renderGrid() {
     const it = p.rep, m = p.market || {}, fx = facetsOf(it), src = imgFor(it), ref = jsArg(p.key);
     const line1 = [fx.rarity || (fx.type === 'Sealed' ? fx.category : null), m.number ? '#' + m.number : null].filter(Boolean).join(' • ');
     const extras = [fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');
-    return `<div class="card" data-pos="${esc(p.key)}">
+    return `<div class="card ${gclass(it.game)}" data-pos="${esc(p.key)}">
       ${p.incoming ? `<span class="book">${p.incoming === p.onHand ? 'incoming' : p.incoming + ' incoming'}</span>` : ''}${p.lots.length > 1 ? `<span class="lots" title="${p.lots.length} order lines">${p.lots.length} lots</span>` : ''}${p.review ? `<span class="flag" title="Auto-matched — check the printing, then accept">review <button class="acc" data-accept="${esc(p.key)}" title="This match is right">✓ accept</button></span>` : ''}
-      <div class="img" onclick="openDetails(${ref})">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}</div>
+      <div class="img" onclick="openDetails(${ref})">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}
+        ${p.onHand > 0 ? `<div class="hov" onclick="event.stopPropagation()"><button onclick="openSale(${ref})">Sell</button><button onclick="openTrade(${ref})">Trade</button><button onclick="openValueOverride(${ref})">Value</button></div>` : ''}</div>
       <div class="ttl">${esc(displayName(it))}</div>
       ${m.setName ? `<div class="set" onclick="toggleF('set', ${jsArg(m.setName)})">${esc(m.setName)}</div>` : `<div class="set" style="text-decoration:none;cursor:default">${esc(fx.type === 'Sealed' ? fx.category : it.game)}</div>`}
       ${line1 ? `<div class="meta">${esc(line1)}</div>` : ''}
       ${fx.condition || extras ? `<div class="meta">${fx.condition ? `<span class="c">${esc(fx.condition)}</span>` : ''}${fx.condition && extras ? ' • ' : ''}${esc(extras)}</div>` : ''}
-      <div class="price">${p.mp == null ? `<span class="dim" style="font-size:14px;cursor:pointer" onclick="openMatch(${ref})">no market price</span>` : money(p.mp)}${p.mp != null ? chgHtml(it) : ''}</div>
-      <div class="cost">avg cost ${money(p.avgCost)}/ea${p.value != null ? ` · value ${money(p.value)}${p.custom ? ' <span class="accent" title="Custom value override">(custom)</span>' : ''} · <span class="${p.gain >= 0 ? 'good' : 'bad'}">${p.gain >= 0 ? '+' : ''}${money(p.gain)}</span>` : ''}${p.locations.length ? `<br>${esc(p.locations.slice(0, 3).join(', '))}${p.locations.length > 3 ? ` +${p.locations.length - 3}` : ''}` : ''}</div>
+      <div class="price">${p.mp == null ? `<span class="dim" style="font-size:14px;cursor:pointer" onclick="openMatch(${ref})">no market price</span>` : money(p.mp)}${p.mp != null ? chgHtml(it, true) : ''}</div>
+      <div class="kv"><div><div class="l">Cost/ea</div><div class="v" title="${money(p.avgCost)}">${compact(p.avgCost)}</div></div><div><div class="l">Value${p.custom ? ' ✎' : ''}</div><div class="v" title="${p.value != null ? money(p.value) : ''}">${p.value != null ? compact(p.value) : '—'}</div></div><div><div class="l">Gain</div><div class="v ${p.gain == null ? 'dim' : p.gain >= 0 ? 'good' : 'bad'}" title="${p.gain != null ? money(p.gain) : ''}">${p.gain != null ? (p.gain >= 0 ? '+' : '') + compact(p.gain) : '—'}</div></div></div>
+      ${p.locations.length ? `<div class="cost locs">${esc(p.locations.slice(0, 3).join(', '))}${p.locations.length > 3 ? ` +${p.locations.length - 3}` : ''}</div>` : ''}
       <div class="foot"><span class="qty">Qty: ${p.onHand}${p.onHand !== p.qty ? `<span class="dim"> / ${p.qty}</span>` : ''}</span><button class="kebab" onclick="openMenu(event, ${ref})">⋮</button></div>
     </div>`;
   }).join('');
@@ -783,13 +872,25 @@ document.addEventListener('click', e => { if (!e.target.closest('#menu')) closeM
 document.addEventListener('scroll', closeMenu, true);
 
 // ---------- details ----------
-function sparkline(h) {
-  if (!h || h.length < 2) return '';
-  const w = 300, ht = 60, xs = h.map((_, i) => i / (h.length - 1) * w), ys = h.map(p => p[1]);
-  const lo = Math.min(...ys), hi = Math.max(...ys), sc = v => hi === lo ? ht / 2 : ht - (v - lo) / (hi - lo) * (ht - 6) - 3;
+let sparkRange = 'all';
+function sparkline(hAll, range) {
+  range = range || sparkRange;
+  if (!hAll || hAll.length < 2) return '<div class="sub" style="margin-top:8px">Price history builds up with each refresh.</div>';
+  const cutoff = range === 'all' ? '' : new Date(Date.now() - (+range) * 86400000).toISOString().slice(0, 10);
+  let h = cutoff ? hAll.filter(p => p[0] >= cutoff) : hAll;
+  if (h.length < 2) h = hAll.slice(-2);
+  const w = 300, ht = 70, xs = h.map((_, i) => i / (h.length - 1) * w), ys = h.map(p => p[1]);
+  const lo = Math.min(...ys), hi = Math.max(...ys), sc = v => hi === lo ? ht / 2 : ht - (v - lo) / (hi - lo) * (ht - 8) - 4;
   const pts = h.map((p, i) => `${xs[i].toFixed(1)},${sc(p[1]).toFixed(1)}`).join(' ');
-  return `<svg viewBox="0 0 ${w} ${ht}" width="100%" height="60" style="display:block;margin-top:6px"><polyline fill="none" stroke="#66c7ff" stroke-width="2" points="${pts}"/></svg><div class="sub">${esc(h[0][0])} ${money(h[0][1])} → ${esc(h[h.length - 1][0])} ${money(h[h.length - 1][1])} · ${h.length} points</div>`;
+  const dots = h.map((p, i) => `<circle cx="${xs[i].toFixed(1)}" cy="${sc(p[1]).toFixed(1)}" r="6" fill="transparent" data-d="${esc(p[0])}" data-p="${p[1]}"><title>${esc(p[0])} · ${money(p[1])}</title></circle>`).join('');
+  const d = h[h.length - 1][1] - h[0][1];
+  return `<div class="rng">${[['7', '7d'], ['30', '30d'], ['all', 'all']].map(([k, l]) => `<button class="${range === k ? 'on' : ''}" onclick="sparkRange='${k}';rerenderSpark()">${l}</button>`).join('')}</div>
+    <svg viewBox="0 0 ${w} ${ht}" width="100%" height="70" style="display:block" id="spark"><polyline fill="none" stroke="#66c7ff" stroke-width="2" points="${pts}"/>${dots}</svg>
+    <div class="sub" id="sparkcap">${esc(h[0][0])} ${money(h[0][1])} → ${esc(h[h.length - 1][0])} ${money(h[h.length - 1][1])} · <span class="${d >= 0 ? 'good' : 'bad'}">${d >= 0 ? '+' : ''}${money(d)}</span> · ${h.length} points</div>`;
 }
+let detRefCur = null;
+function rerenderSpark() { if (detRefCur) { const it = lotsFor(detRefCur)[0]; const el = $('sparkwrap'); if (el && it) el.innerHTML = sparkline(histFor(it)); } }
+document.addEventListener('mouseover', e => { const c = e.target.closest && e.target.closest('#spark circle'); if (c) { const cap = $('sparkcap'); if (cap) cap.textContent = `${c.dataset.d} · ${money(+c.dataset.p)}`; } });
 function openDetails(ref) {
   const lots = lotsFor(ref); if (!lots.length) return;
   const p = buildPositions(lots)[0], it = p.rep, m = p.market || {}, fx = facetsOf(it);
@@ -810,12 +911,19 @@ function openDetails(ref) {
     ? `<div class="row"><span>${esc(mv.date)} · sold ${mv.qty} @ ${money(mv.unitPrice)}${mv.channel ? ' · ' + esc(mv.channel) : ''}</span><span>${money(mv.qty * mv.unitPrice - (mv.fee || 0))}</span></div>`
     : `<div class="row"><span>${esc(mv.date)} · traded ${mv.qty}${mv.counterparty ? ' with ' + esc(mv.counterparty) : ''}${mv.received ? ' for ' + esc(mv.received) : ''}</span><span>${money(mv.value || 0)}</span></div>`).join('');
   $('dettitle').textContent = displayName(it);
-  $('detbody').innerHTML = `<div>${bigImgFor(it) ? `<img src="${esc(bigImgFor(it))}" alt="">` : ''}${m.url ? `<p class="sub"><a href="${esc(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open on TCGplayer</a></p>` : ''}<p class="sub">Listed as: ${esc(it.product)}</p>${sparkline(histFor(it))}</div>
-    <div>${rows.map(([k, v]) => `<div class="row"><span class="dim">${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
-    <div class="subh">Lots (${lots.length})</div><div class="tblwrap"><table class="lott"><tr><th>Acquired</th><th class="num">On hand</th><th class="num">Unit cost</th><th>Location</th><th></th></tr>${lotRows}</table></div>
-    ${moves ? `<div class="subh">Sales &amp; trades</div>${moves}` : ''}</div>`;
+  detRefCur = ref;
+  const nMoves = lots.reduce((a, l) => a + (l.moves || []).length, 0);
+  $('detbody').innerHTML = `<div>${bigImgFor(it) ? `<img src="${esc(bigImgFor(it))}" alt="">` : ''}${m.url ? `<p class="sub"><a href="${esc(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open on TCGplayer</a></p>` : ''}<p class="sub">Listed as: ${esc(it.product)}</p></div>
+    <div>
+    <div class="dtabs"><button class="on" data-dt="info" onclick="detTab('info')">Details</button><button data-dt="lots" onclick="detTab('lots')">Lots (${lots.length})</button><button data-dt="hist" onclick="detTab('hist')">Price history</button><button data-dt="moves" onclick="detTab('moves')">Sales &amp; trades (${nMoves})</button></div>
+    <div data-dp="info">${rows.map(([k, v]) => `<div class="row"><span class="dim">${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>
+    <div data-dp="lots" style="display:none"><div class="tblwrap"><table class="lott"><tr><th>Acquired</th><th class="num">On hand</th><th class="num">Unit cost</th><th>Location</th><th></th></tr>${lotRows}</table></div></div>
+    <div data-dp="hist" style="display:none" id="sparkwrap">${sparkline(histFor(it))}</div>
+    <div data-dp="moves" style="display:none">${moves || '<div class="empty">No sales or trades yet.</div>'}</div>
+    </div>`;
   $('detdlg').showModal();
 }
+function detTab(k) { document.querySelectorAll('#detbody [data-dt]').forEach(b => b.classList.toggle('on', b.dataset.dt === k)); document.querySelectorAll('#detbody [data-dp]').forEach(p => p.style.display = p.dataset.dp === k ? '' : 'none'); }
 
 // ---------- list ----------
 function thumb(it) { const src = imgFor(it); return src ? `<img class="thumb" src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb none',textContent:'🃏'}))">` : `<div class="thumb none">🃏</div>`; }
@@ -1025,6 +1133,24 @@ function channelTable(items) {
   if (!rows.length) return '<div class="empty">No sales yet.</div>';
   return `<table><tr><th>Channel</th><th class="num">Units</th><th class="num">Revenue</th><th class="num">Fees</th><th class="num">Profit</th></tr>` + rows.map(([c, v]) => `<tr><td>${esc(c)}</td><td class="num">${v.units}</td><td class="num">${money(v.rev)}</td><td class="num">${money(v.fees)}</td><td class="num ${v.profit >= 0 ? 'good' : 'bad'}">${money(v.profit)}</td></tr>`).join('') + '</table>';
 }
+function valueChart(items) {
+  // stock value over time: for each day with a price point, sum (units on hand today) × (last known price on that day) × rate
+  const priced = items.filter(i => onHand(i) > 0 && !hasOverride(i) && histFor(i).length);
+  const days = [...new Set(priced.flatMap(i => histFor(i).map(p => p[0])))].sort();
+  if (days.length < 2) return `<div class="chart"><div class="sub">Stock value over time appears once a few days of prices are recorded.</div></div>`;
+  const series = days.map(d => { let v = 0; for (const it of priced) { const h = histFor(it); let px = null; for (const p of h) { if (p[0] <= d) px = p[1]; else break; } if (px == null) px = h[0][1]; v += onHand(it) * px * valueRate(); } return v; });
+  const fixed = items.filter(i => onHand(i) > 0 && (hasOverride(i) || !histFor(i).length)).reduce((a, i) => a + onHand(i) * (unitValue(i) ?? 0), 0);
+  const ys = series.map(v => v + fixed), lo = Math.min(...ys), hi = Math.max(...ys), w = 600, ht = 170;
+  const x = i => (i / (ys.length - 1) * (w - 20) + 10).toFixed(1), y = v => (hi === lo ? ht / 2 : ht - 10 - (v - lo) / (hi - lo) * (ht - 30)).toFixed(1);
+  const pts = ys.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+  const area = `M${x(0)},${ht - 10} L${pts.replace(/ /g, ' L')} L${x(ys.length - 1)},${ht - 10} Z`;
+  const d = ys[ys.length - 1] - ys[0];
+  return `<div class="chart"><div class="sub" style="margin-bottom:4px">Stock value @${valuePct()}% over time · <span class="${d >= 0 ? 'good' : 'bad'}">${d >= 0 ? '+' : ''}${money(d)}</span> since ${esc(days[0])}</div>
+    <svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none"><path d="${area}" fill="rgba(102,199,255,.12)"/><polyline fill="none" stroke="#66c7ff" stroke-width="2" points="${pts}"/>
+    ${ys.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="7" fill="transparent"><title>${esc(days[i])} · ${money(v)}</title></circle>`).join('')}
+    <text x="10" y="12" fill="#97a0b4" font-size="11">${money0(hi)}</text><text x="10" y="${ht - 14}" fill="#97a0b4" font-size="11">${money0(lo)}</text></svg>
+    <div class="cap"><span>${esc(days[0])}</span><span>${esc(days[days.length - 1])} · ${money(ys[ys.length - 1])}</span></div></div>`;
+}
 function renderStats() {
   const q = $('q').value.trim().toLowerCase(), filtered = Object.keys(state.f).length > 0 || q;
   const items = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))), t = bookTotals(items);
@@ -1046,6 +1172,7 @@ function renderStats() {
   const fx = it => facetsOf(it);
   $('view_stats').innerHTML = `
     <div class="tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+    ${valueChart(items)}
     <div class="two">
       <div class="panel"><div class="subh">Top holdings</div><table><tr><th>Product</th><th class="num">Qty</th><th class="num">Market</th><th class="num">Value @${valuePct()}%</th></tr>${top.map(i => `<tr><td>${esc(displayName(i))}<div class="sub">${esc(i.market?.setName || i.category || '')}</div></td><td class="num">${onHand(i)}</td><td class="num">${money(marketPrice(i))}</td><td class="num">${money(onHand(i) * unitValue(i))}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nothing priced yet.</td></tr>'}</table></div>
       <div class="panel"><div class="subh">Biggest movers (since last snapshot)</div><table><tr><th>Product</th><th class="num">Market</th><th class="num">Change</th><th class="num">On position</th></tr>${movers.map(({i, c}) => `<tr><td>${esc(displayName(i))}</td><td class="num">${money(marketPrice(i))}</td><td class="num ${c.abs >= 0 ? 'good' : 'bad'}">${c.abs >= 0 ? '+' : ''}${money(c.abs)}${c.pct != null ? ` (${pct(c.pct)})` : ''}</td><td class="num ${c.abs >= 0 ? 'good' : 'bad'}">${c.abs >= 0 ? '+' : ''}${money(c.abs * onHand(i))}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No price history yet — prices are recorded on each refresh.</td></tr>'}</table></div>
@@ -1414,6 +1541,34 @@ $('addq').addEventListener('keydown', e => {
 });
 $('addmenu').addEventListener('mousedown', e => { const o = e.target.closest('.opt'); if (o) { e.preventDefault(); pickAdd(+o.dataset.i); } });
 document.addEventListener('click', e => { if (!e.target.closest('.addwrap')) $('addmenu').style.display = 'none'; });
+
+// ---------- review queue ----------
+function openReview() {
+  const positions = buildPositions(DOC.items.filter(i => inBook(i) && onHand(i) > 0)).filter(p => p.review);
+  $('reviewtitle').textContent = `Review matches (${positions.length})`;
+  $('reviewlist').innerHTML = positions.length ? positions.map(p => { const it = p.rep, m = p.market || {}, r = jsArg(p.key); return `<div class="rq" data-rk="${esc(p.key)}">
+      ${imgFor(it) ? `<img src="${esc(imgFor(it))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<div style="width:44px"></div>'}
+      <div class="n"><b>${esc(it.product)}</b><span class="sub">matched: ${esc(m.productName || '—')}${m.setName ? ' · ' + esc(m.setName) : ''}${m.number ? ' · #' + esc(m.number) : ''}${m.rarity ? ' · ' + esc(m.rarity) : ''} · ${p.lots.length} lot${p.lots.length !== 1 ? 's' : ''}, ${p.onHand} on hand</span></div>
+      <div class="pr">${m.price != null ? money(m.price) : '—'}</div>
+      <button class="small primary" onclick="acceptMatch(${r});this.closest('.rq').remove();updateReviewTitle()">Accept</button><button class="small" onclick="$('reviewdlg').close();openMatch(${r})">Change</button></div>`; }).join('')
+    : '<div class="empty">Nothing left to review.</div>';
+  $('reviewdlg').showModal();
+}
+function updateReviewTitle() { const n = document.querySelectorAll('#reviewlist .rq').length; $('reviewtitle').textContent = `Review matches (${n})`; if (!n) $('reviewlist').innerHTML = '<div class="empty">Nothing left to review.</div>'; }
+function acceptAllReview() { document.querySelectorAll('#reviewlist .rq').forEach(el => acceptMatch(el.dataset.rk)); $('reviewdlg').close(); }
+
+// ---------- keyboard shortcuts + pinned toolbar ----------
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+  if (e.key === 'Escape') { closeMenu(); hideTip(); $('addmenu').style.display = 'none'; document.querySelectorAll('dialog[open]').forEach(d => d.close()); $('facets').classList.remove('open'); return; }
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === '/') { e.preventDefault(); $('addq').focus(); }
+  else if (e.key === '?') { $('helpdlg').showModal(); }
+  else if (e.key === 'f') { $('facets').classList.toggle('open'); }
+  else if (e.key === 'r') { openReview(); }
+  else if ('123456'.includes(e.key)) { setView(['grid', 'list', 'sold', 'traded', 'txn', 'stats'][+e.key - 1]); }
+});
+new IntersectionObserver(([en]) => $('toolbar').classList.toggle('scrolled', !en.isIntersecting), {threshold: 0}).observe($('overview'));
 
 // ---------- backup ----------
 function exportJSON() { const blob = new Blob([JSON.stringify(DOC, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vending-tracker-${today()}.json`; a.click(); URL.revokeObjectURL(a.href); }
