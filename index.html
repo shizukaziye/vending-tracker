@@ -107,7 +107,9 @@ th.num{text-align:right}
 .card .kebab{width:34px;height:34px;border-radius:50%;border:2px solid #1d8a7a;background:transparent;color:#5ee0c9;font-size:18px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;flex:none}
 .card .kebab:hover{background:#12312d}
 .card .book{position:absolute;top:18px;left:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);color:var(--dim);border:1px solid var(--border)}
-.card .flag{position:absolute;top:18px;right:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);border:1px solid #6a5230;color:var(--warn)}
+.card .flag{position:absolute;top:18px;right:18px;font-size:10.5px;font-weight:700;padding:1px 4px 1px 7px;border-radius:999px;background:rgba(13,16,23,.9);border:1px solid #6a5230;color:var(--warn);display:flex;align-items:center;gap:5px;z-index:2}
+.acc{border:0;border-radius:999px;background:#2c5a44;color:var(--good);font-size:11px;font-weight:700;padding:1px 7px;line-height:1.3;cursor:pointer}
+.acc:hover{background:#3a7a5a;border-color:transparent}
 .card .lots{position:absolute;top:18px;right:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);border:1px solid var(--border);color:var(--dim)}
 .card .flag{right:auto;left:18px;top:42px}
 .lott td{font-size:13px}
@@ -727,7 +729,7 @@ function renderGrid() {
     const line1 = [fx.rarity || (fx.type === 'Sealed' ? fx.category : null), m.number ? '#' + m.number : null].filter(Boolean).join(' • ');
     const extras = [fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');
     return `<div class="card" data-pos="${esc(p.key)}">
-      ${p.incoming ? `<span class="book">${p.incoming === p.onHand ? 'incoming' : p.incoming + ' incoming'}</span>` : ''}${p.lots.length > 1 ? `<span class="lots" title="${p.lots.length} order lines">${p.lots.length} lots</span>` : ''}${p.review ? `<span class="flag" title="Auto-matched — check the printing">review</span>` : ''}
+      ${p.incoming ? `<span class="book">${p.incoming === p.onHand ? 'incoming' : p.incoming + ' incoming'}</span>` : ''}${p.lots.length > 1 ? `<span class="lots" title="${p.lots.length} order lines">${p.lots.length} lots</span>` : ''}${p.review ? `<span class="flag" title="Auto-matched — check the printing, then accept">review <button class="acc" data-accept="${esc(p.key)}" title="This match is right">✓ accept</button></span>` : ''}
       <div class="img" onclick="openDetails(${ref})">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}</div>
       <div class="ttl">${esc(displayName(it))}</div>
       ${m.setName ? `<div class="set" onclick="toggleF('set', ${jsArg(m.setName)})">${esc(m.setName)}</div>` : `<div class="set" style="text-decoration:none;cursor:default">${esc(fx.type === 'Sealed' ? fx.category : it.game)}</div>`}
@@ -762,6 +764,7 @@ function openMenu(ev, ref) {
     rem > 0 ? `<button onclick="closeMenu();openTrade(${r})">Trade</button>` : '',
     rem > 0 ? `<button onclick="closeMenu();openBookMove(${r})">Move to ${other}</button>` : '',
     `<button onclick="closeMenu();openMatch(${r})">Market price</button>`,
+    lots.some(l => l.market?.auto) ? `<button onclick="closeMenu();acceptMatch(${r})">✓ Accept match</button>` : '',
     `<button onclick="closeMenu();openValueOverride(${r})">Override value…</button>`,
     `<button onclick="closeMenu();openDetails(${r})">${single ? 'Details' : `Details · ${lots.length} lots`}</button>`,
     single ? `<button onclick="closeMenu();openForm('${lots[0].id}')">Edit</button>` : '',
@@ -817,7 +820,7 @@ function marketBadge(it) {
   const m = it.market;
   if (!m || m.price == null) return `<span class="mk none" onclick="openMatch('${it.id}')">no market</span>`;
   const kind = m.source === 'manual' ? 'manual' : (m.auto ? 'auto' : 'tcg');
-  return `<span class="mk ${kind}" onclick="openMatch('${it.id}')">${m.source === 'manual' ? 'manual' : (m.auto ? 'auto ✎' : 'tcg')}</span>`;
+  return `<span class="mk ${kind}" onclick="openMatch('${it.id}')">${m.source === 'manual' ? 'manual' : (m.auto ? 'auto ✎' : 'tcg')}</span>${m.auto ? `<button class="acc" data-accept="${it.id}" title="This match is right">✓</button>` : ''}`;
 }
 function renderList() {
   const rows = sortItems(visibleItems());
@@ -1104,6 +1107,14 @@ function submitBookMove() {
   for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: note || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id});
   $('movedlg').close(); markDirty();
 }
+
+// ---------- accept an auto-match ----------
+function acceptMatch(ref) {
+  let n = 0;
+  for (const it of lotsFor(ref)) if (it.market && it.market.auto) { it.market.auto = false; n++; }
+  if (n) { markDirty(); }
+}
+document.addEventListener('click', e => { const b = e.target.closest('button[data-accept]'); if (b) { e.preventDefault(); e.stopPropagation(); acceptMatch(b.dataset.accept); } }, true);
 
 // ---------- value override ----------
 let valRef = null;
