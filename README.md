@@ -41,6 +41,12 @@ valued at a set share of TCGplayer market price (90% by default).
     lets you pick the product, or set a manual price. `↻ Prices` refreshes every matched
     item. Auto-matched items (from the Target import) show an orange `auto ✎` badge until
     you confirm or change them; the "Auto-matched (review)" filter lists them.
+  - **Transactions**: a dated ledger of money in and out per book. Purchases are grouped per
+    order (each Target order, Cardmarket shipment, Bandai order or lot buyout is one row with its
+    total, counterparty, lines and who paid); sales, trades and moves to the personal collection
+    come from the records on each product. Future-dated rows (a buyout paid next week) show as
+    upcoming and stay out of the spent-to-date totals until the date passes. Filter by type and
+    month; the search box applies too.
   - **Stats** per book: value at 90% of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
 - **API** (`worker/`): a Cloudflare Worker that stores one JSON document in KV behind a

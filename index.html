@@ -224,6 +224,7 @@ footer .note{font-size:12px;color:var(--dim)}
         <button id="tab_list" onclick="setView('list')">List</button>
         <button id="tab_sold" onclick="setView('sold')">Sold</button>
         <button id="tab_traded" onclick="setView('traded')">Traded</button>
+        <button id="tab_txn" onclick="setView('txn')">Transactions</button>
         <button id="tab_stats" onclick="setView('stats')">Overview</button>
       </div>
       <input id="q" placeholder="Search…" oninput="renderAll()" style="min-width:180px">
@@ -278,6 +279,7 @@ footer .note{font-size:12px;color:var(--dim)}
         <div id="view_list" class="panel" style="display:none"><div class="tblwrap" id="invtbl"></div></div>
         <div id="view_sold" class="panel" style="display:none"><div class="tblwrap" id="soldtbl"></div></div>
         <div id="view_traded" class="panel" style="display:none"><div class="tblwrap" id="tradedtbl"></div></div>
+        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label></div><div class="tblwrap" id="txntbl"></div></div></div>
         <div id="view_stats" style="display:none"></div>
       </div>
     </div>
@@ -594,8 +596,8 @@ function toggleCollapse(key) { state.collapsed.has(key) ? state.collapsed.delete
 // ---------- views ----------
 function setView(v) {
   state.view = v;
-  for (const x of ['grid', 'list', 'sold', 'traded', 'stats']) { $('tab_' + x).classList.toggle('active', x === v); $('view_' + x).style.display = x === v ? '' : 'none'; }
-  $('facets').style.display = v === 'stats' ? 'none' : '';
+  for (const x of ['grid', 'list', 'sold', 'traded', 'txn', 'stats']) { $('tab_' + x).classList.toggle('active', x === v); $('view_' + x).style.display = x === v ? '' : 'none'; }
+  $('facets').style.display = (v === 'stats' || v === 'txn') ? 'none' : '';
   renderAll();
 }
 function sortItems(items) {
@@ -624,6 +626,7 @@ function renderAll() {
   if (state.view === 'list') renderList();
   if (state.view === 'sold') renderSold();
   if (state.view === 'traded') renderTraded();
+  if (state.view === 'txn') renderTxn();
   if (state.view === 'stats') renderStats();
   $('revnote').textContent = 'rev ' + DOC.rev + ' · ' + BOOK_NAMES[BOOK] + ' · inventory valued at ' + valuePct() + '% of market';
 }
@@ -911,6 +914,73 @@ function renderTraded() {
   $('tradedtbl').innerHTML = h + '</table>';
 }
 function showItem(id) { const it = DOC.items.find(x => x.id === id); if (!it) { alert('That item was deleted.'); return; } $('q').value = it.product; $('hideGone').checked = false; setView('grid'); }
+
+// ---------- transactions ledger ----------
+const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer'};
+function buildTxns() {
+  const items = DOC.items.filter(inBook), rows = [], byTxn = new Map(), td = today();
+  for (const it of items) {
+    const t = it.txn, src = it.source || '';
+    const skipAcq = /^trade\b/i.test(src) || /business inventory|personal collection/i.test(src);  // the move on the other side is the event
+    if (!skipAcq) {
+      if (t && t.id) {
+        const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
+        g.lots.push(it); g.units += it.qty; g.cost += it.qty * (it.unitCost || 0); byTxn.set(t.id, g);
+      } else {
+        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: 'purchase', who: src || '—', vendor: '', ref: '', lots: [it], units: it.qty, cost: it.qty * (it.unitCost || 0), out: it.qty * (it.unitCost || 0), payer: it.payment || '', currency: 'USD'});
+      }
+    }
+    for (const m of (it.moves || [])) {
+      const cost = m.qty * (it.unitCost || 0);
+      if (m.type === 'sold') {
+        const transfer = /personal collection|^business$/i.test(m.channel || '');
+        rows.push({key: 'm:' + m.id, date: m.date || '', type: transfer ? 'transfer' : 'sale', who: m.channel || '—', ref: displayName(it), lots: [it], units: m.qty, cost, inn: m.qty * m.unitPrice - (m.fee || 0), fee: m.fee || 0, profit: m.qty * m.unitPrice - (m.fee || 0) - cost, note: m.note});
+      } else {
+        rows.push({key: 'm:' + m.id, date: m.date || '', type: 'trade', who: m.counterparty || '—', ref: `${displayName(it)}${m.received ? ' → ' + m.received : ''}`, lots: [it], units: m.qty, cost, inn: m.value || 0, profit: (m.value || 0) - cost, note: m.note});
+      }
+    }
+  }
+  for (const g of byTxn.values()) { g.out = g.totalUsd != null ? g.totalUsd : g.cost; rows.push(g); }
+  for (const r of rows) r.upcoming = r.date > td;
+  return rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.type || '').localeCompare(a.type || ''));
+}
+function renderTxn() {
+  const all = buildTxns();
+  const months = [...new Set(all.map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+  const keepM = $('txn_month').value;
+  $('txn_month').innerHTML = '<option value="">All months</option>' + months.map(m => `<option value="${m}" ${m === keepM ? 'selected' : ''}>${m}</option>`).join('');
+  const type = $('txn_type').value, month = $('txn_month').value, q = $('q').value.trim().toLowerCase(), inclUp = $('txn_upcoming').checked;
+  const rows = all.filter(r => (!type || r.type === type) && (!month || (r.date || '').startsWith(month)) && (inclUp || !r.upcoming) &&
+    (!q || [r.who, r.ref, r.vendor, r.payer, r.note, ...r.lots.map(displayName)].join(' ').toLowerCase().includes(q)));
+  const sum = (arr, f) => arr.reduce((a, r) => a + (f(r) || 0), 0);
+  const tm = today().slice(0, 7);
+  const past = all.filter(r => !r.upcoming), mrows = past.filter(r => (r.date || '').startsWith(tm)), up = all.filter(r => r.upcoming);
+  const out = a => sum(a.filter(r => r.type === 'purchase'), r => r.out), inn = a => sum(a.filter(r => r.type === 'sale' || r.type === 'trade'), r => r.inn);
+  const tiles = [
+    [money(out(mrows)), `Spent in ${tm}`], [money(inn(mrows)), `Received in ${tm}`], [sgn(inn(mrows) - out(mrows)), `Net cash in ${tm}`],
+    [money(out(past)), 'Spent to date'], [money(inn(past)), 'Received to date'], [sgn(inn(past) - out(past)), 'Net cash to date'],
+    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.type === 'sale' || r.type === 'trade'), r => r.profit)), 'Realized profit to date'],
+  ];
+  $('txntiles').innerHTML = tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  $('count').textContent = `${rows.length} transaction${rows.length !== 1 ? 's' : ''}`;
+  if (!rows.length) { $('txntbl').innerHTML = '<div class="empty">No transactions match.</div>'; return; }
+  let h = `<table><tr><th>Date</th><th>Type</th><th>With</th><th>What</th><th class="num">Units</th><th class="num">Out</th><th class="num">In</th><th class="num">Profit</th><th class="hidemob">Paid by</th></tr>`;
+  let tOut = 0, tIn = 0, tP = 0;
+  const COLORS = {purchase: '#66c7ff', sale: '#6ee7a8', trade: '#c78cff', transfer: '#97a0b4'};
+  for (const r of rows) {
+    tOut += r.out || 0; tIn += r.inn || 0; tP += r.profit || 0;
+    const what = r.type === 'purchase'
+      ? `${esc(r.ref && r.vendor && r.ref.startsWith(r.vendor) ? r.ref : (r.vendor ? r.vendor + (r.ref ? ' · ' + r.ref : '') : r.ref || ''))}${r.lots.length > 1 ? `<div class="sub">${r.lots.length} lines · ${r.lots.slice(0, 3).map(displayName).map(esc).join(', ')}${r.lots.length > 3 ? ` +${r.lots.length - 3}` : ''}</div>` : `<div class="sub">${esc(displayName(r.lots[0]))}</div>`}${r.currency && r.currency !== 'USD' && r.total != null ? `<div class="sub">${(+r.total).toFixed(2)} ${esc(r.currency)}</div>` : ''}`
+      : `${esc(r.ref)}${r.note ? `<div class="sub">${esc(r.note)}</div>` : ''}`;
+    h += `<tr><td><span class="sub">${esc(r.date || '—')}</span>${r.upcoming ? '<div><span class="tag" style="color:var(--warn)">upcoming</span></div>' : ''}</td>
+      <td><span class="gchip" style="background:${COLORS[r.type]}">${TXN_LABEL[r.type]}</span></td>
+      <td>${esc(r.who)}</td><td>${what}</td><td class="num">${r.units}</td>
+      <td class="num">${r.out != null ? money(r.out) : ''}</td><td class="num">${r.inn != null ? money(r.inn) : ''}</td>
+      <td class="num ${r.profit == null ? '' : r.profit >= 0 ? 'good' : 'bad'}">${r.profit != null ? money(r.profit) : ''}</td><td class="hidemob"><span class="sub">${esc(r.payer || '')}</span></td></tr>`;
+  }
+  h += `<tr><td colspan="5" class="dim">Total (filtered)</td><td class="num">${money(tOut)}</td><td class="num">${money(tIn)}</td><td class="num ${tP >= 0 ? 'good' : 'bad'}">${money(tP)}</td><td></td></tr>`;
+  $('txntbl').innerHTML = h + '</table>';
+}
 
 // ---------- overview page ----------
 function groupTable(items, keyFn, label) {
