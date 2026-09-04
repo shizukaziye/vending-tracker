@@ -11,12 +11,20 @@ valued at a set share of TCGplayer market price (90% by default).
     added at quantity 1, matched and priced, with a "just added" strip to adjust quantity,
     cost, condition, location, source and who paid. Arrow keys and Enter work too. The old form
     is behind the small "manual" button.
+  - **Layout**: the toolbar (Add box, views, search, sort, card size S/M/L) stays pinned while
+    you scroll and shows a one-line summary once the overview strip is off screen. Cards carry a
+    colored stripe per game, cost / value / gain cells, and Sell / Trade / Value buttons on hover.
+    Facets remember what you collapsed, get a search box when long, and have a per-facet reset.
+    On phones: a bottom bar for the views, filters in a slide-over drawer, two cards per row.
+    Keyboard: `/` Add box, `1`–`6` views, `f` filters, `r` review queue, `Esc` close, `?` help.
+  - **Review queue**: "Review (n)" lists every auto-matched product with Accept / Change, plus
+    Accept all. Each card and list row also has a ✓ accept button on its review badge.
   - **Cards view** (default): one tile per product (all order lines of the same product and
     condition consolidated, quantity summed, cost averaged) with the TCGplayer image, set, rarity and
     collector number, condition and finish, market price with the change since the last price
     snapshot, quantity on hand, cost and gain, and a ⋮ menu (Sell, Trade, move between books,
-    Market price, Details, Edit, Delete). Clicking the image opens Details with a price history
-    sparkline and the list of lots (each order line with its date, cost, source, buyer and
+    Market price, Details, Edit, Delete). Clicking the image opens Details with tabs for details, lots, price history
+    (7d / 30d / all, hover for values) and sales and the list of lots (each order line with its date, cost, source, buyer and
     location, editable one by one). Selling, trading or moving from a consolidated tile draws
     from the oldest lot first; setting a market price applies to every lot. List view is the old table; hover a row for details.
   - **Facets** on the left, all derived automatically and combinable: status, game, type (sealed or
