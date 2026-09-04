@@ -341,6 +341,15 @@ footer .note{font-size:12px;color:var(--dim)}
   <div class="dfoot"><span class="sub" id="m_current"></span><span class="spacer"></span><button onclick="document.getElementById('matchdlg').close()">Close</button></div>
 </dialog>
 
+<dialog id="valdlg">
+  <h3 id="valtitle">Override value</h3>
+  <p class="sub" id="valhint" style="margin:0 0 10px"></p>
+  <div class="dgrid">
+    <div class="wide"><label>Value per unit ($)</label><input id="v_val" type="number" min="0" step="0.01" placeholder="what one unit is really worth to you"></div>
+  </div>
+  <div class="dfoot"><button class="danger" onclick="clearValueOverride()">Back to market × %</button><span class="spacer"></span><button onclick="document.getElementById('valdlg').close()">Cancel</button><button class="primary" onclick="submitValueOverride()">Save</button></div>
+</dialog>
+
 <dialog id="detdlg" class="wide">
   <h3 id="dettitle">Details</h3>
   <div id="detbody" class="det"></div>
@@ -458,7 +467,8 @@ function setBook(b) { BOOK = b; $('book_business').classList.toggle('on', b === 
 const movedQty = it => (it.moves || []).reduce((a, m) => a + m.qty, 0);
 const onHand = it => it.qty - movedQty(it);
 const marketPrice = it => (it.market && it.market.price != null) ? +it.market.price : null;
-const unitValue = it => { const m = marketPrice(it); return m == null ? null : m * valueRate(); };
+const hasOverride = it => it.valueOverride != null && it.valueOverride !== '';
+const unitValue = it => { if (hasOverride(it)) return +it.valueOverride; const m = marketPrice(it); return m == null ? null : m * valueRate(); };
 const imgFor = it => it.market?.image || (it.market?.productId ? `https://tcgplayer-cdn.tcgplayer.com/product/${it.market.productId}_200w.jpg` : null);
 const bigImgFor = it => it.market?.productId ? `https://product-images.tcgplayer.com/fit-in/437x437/${it.market.productId}.jpg` : imgFor(it);
 const displayName = it => it.market?.productName || it.product;
@@ -525,12 +535,13 @@ function facetsOf(it) {
     condition: a.condition || (sealed ? 'Sealed' : null), language: a.language || (sealed ? 'English' : null), finish,
     status: statusOf(it), source: sourceOf(it), location: it.location || '—', payer: it.payment || '—',
     market: marketState(it), tags: (it.tags || []),
+    value: hasOverride(it) ? 'Custom value' : (marketPrice(it) != null ? `Market × ${valuePct()}%` : 'No value'),
   };
 }
 const FACETS = [
   ['status', 'Status'], ['game', 'Game'], ['type', 'Type'], ['category', 'Product'], ['set', 'Set'], ['rarity', 'Rarity'],
   ['printing', 'Printing'], ['condition', 'Condition'], ['finish', 'Finish'], ['language', 'Language'],
-  ['source', 'Source'], ['location', 'Location'], ['payer', 'Paid by'], ['market', 'Market price'], ['tags', 'Tags'],
+  ['source', 'Source'], ['location', 'Location'], ['payer', 'Paid by'], ['market', 'Market price'], ['value', 'Valuation'], ['tags', 'Tags'],
 ];
 const state = {view: 'grid', f: {}, expanded: new Set(), collapsed: new Set()};
 function hasF(key, val) { return !!state.f[key]?.has(val); }
@@ -547,7 +558,7 @@ function matchesFacets(fx, skip) {
 function searchHit(it, q) {
   if (!q) return true;
   const m = it.market || {};
-  return [it.product, it.category, it.notes, it.location, it.source, it.payment, (it.tags || []).join(' '), m.productName, m.setName, m.number, m.rarity].join(' ').toLowerCase().includes(q);
+  return [it.product, it.category, it.notes, it.location, it.source, it.payment, (it.tags || []).join(' '), m.productName, m.setName, m.number, m.rarity, hasOverride(it) ? 'custom value' : ''].join(' ').toLowerCase().includes(q);
 }
 function baseItems() { const q = $('q').value.trim().toLowerCase(), hide = $('hideGone').checked; return DOC.items.filter(it => inBook(it) && searchHit(it, q) && (!hide || onHand(it) > 0 || state.f.status?.has('Sold out'))); }
 function visibleItems() { return baseItems().filter(it => matchesFacets(facetsOf(it))); }
@@ -627,7 +638,7 @@ function bookTotals(items) {
   for (const it of items) {
     const rem = onHand(it), uc = it.unitCost || 0, mp = marketPrice(it), uv = unitValue(it);
     units += rem; cost += rem * uc; spent += it.qty * uc; if (rem > 0) products++;
-    if (uv == null) unpricedCost += rem * uc; else { value += rem * uv; valueMkt += rem * mp; }
+    if (uv == null) unpricedCost += rem * uc; else { value += rem * uv; valueMkt += rem * (mp ?? uv); }
     const c1 = changeFor(it, 1), c7 = changeFor(it, 7);
     if (c1) day += rem * c1.abs; if (c7) week += rem * c7.abs;
     if (statusOf(it) === 'Incoming') { incomingCost += rem * uc; incomingUnits += rem; }
@@ -680,7 +691,8 @@ function buildPositions(items) {
     p.rep = priced; p.market = priced.market; p.qty = p.lots.reduce((a, l) => a + l.qty, 0); p.onHand = p.lots.reduce((a, l) => a + onHand(l), 0);
     p.cost = p.lots.reduce((a, l) => a + onHand(l) * (l.unitCost || 0), 0); p.avgCost = p.onHand ? p.cost / p.onHand : (p.lots[0].unitCost || 0);
     p.spent = p.lots.reduce((a, l) => a + l.qty * (l.unitCost || 0), 0);
-    p.mp = marketPrice(priced); p.uv = unitValue(priced); p.value = p.uv == null ? null : p.onHand * p.uv;
+    p.mp = marketPrice(priced); p.uv = unitValue(priced); p.custom = p.lots.some(hasOverride);
+    p.value = p.lots.every(l => unitValue(l) == null) ? null : p.lots.reduce((a, l) => a + onHand(l) * (unitValue(l) ?? 0), 0);
     p.gain = p.value == null ? null : p.value - p.cost;
     p.incoming = p.lots.filter(l => statusOf(l) === 'Incoming').reduce((a, l) => a + onHand(l), 0);
     p.review = p.lots.some(l => l.market?.auto);
@@ -721,7 +733,7 @@ function renderGrid() {
       ${line1 ? `<div class="meta">${esc(line1)}</div>` : ''}
       ${fx.condition || extras ? `<div class="meta">${fx.condition ? `<span class="c">${esc(fx.condition)}</span>` : ''}${fx.condition && extras ? ' • ' : ''}${esc(extras)}</div>` : ''}
       <div class="price">${p.mp == null ? `<span class="dim" style="font-size:14px;cursor:pointer" onclick="openMatch(${ref})">no market price</span>` : money(p.mp)}${p.mp != null ? chgHtml(it) : ''}</div>
-      <div class="cost">avg cost ${money(p.avgCost)}/ea${p.value != null ? ` · value ${money(p.value)} · <span class="${p.gain >= 0 ? 'good' : 'bad'}">${p.gain >= 0 ? '+' : ''}${money(p.gain)}</span>` : ''}${p.locations.length ? `<br>${esc(p.locations.slice(0, 3).join(', '))}${p.locations.length > 3 ? ` +${p.locations.length - 3}` : ''}` : ''}</div>
+      <div class="cost">avg cost ${money(p.avgCost)}/ea${p.value != null ? ` · value ${money(p.value)}${p.custom ? ' <span class="accent" title="Custom value override">(custom)</span>' : ''} · <span class="${p.gain >= 0 ? 'good' : 'bad'}">${p.gain >= 0 ? '+' : ''}${money(p.gain)}</span>` : ''}${p.locations.length ? `<br>${esc(p.locations.slice(0, 3).join(', '))}${p.locations.length > 3 ? ` +${p.locations.length - 3}` : ''}` : ''}</div>
       <div class="foot"><span class="qty">Qty: ${p.onHand}${p.onHand !== p.qty ? `<span class="dim"> / ${p.qty}</span>` : ''}</span><button class="kebab" onclick="openMenu(event, ${ref})">⋮</button></div>
     </div>`;
   }).join('');
@@ -749,6 +761,7 @@ function openMenu(ev, ref) {
     rem > 0 ? `<button onclick="closeMenu();openTrade(${r})">Trade</button>` : '',
     rem > 0 ? `<button onclick="closeMenu();openBookMove(${r})">Move to ${other}</button>` : '',
     `<button onclick="closeMenu();openMatch(${r})">Market price</button>`,
+    `<button onclick="closeMenu();openValueOverride(${r})">Override value…</button>`,
     `<button onclick="closeMenu();openDetails(${r})">${single ? 'Details' : `Details · ${lots.length} lots`}</button>`,
     single ? `<button onclick="closeMenu();openForm('${lots[0].id}')">Edit</button>` : '',
     single ? `<button class="danger" onclick="closeMenu();delItem('${lots[0].id}')">Delete</button>` : '',
@@ -779,7 +792,7 @@ function openDetails(ref) {
     ['Rarity', m.rarity || '—'], ['Printing', fx.printing || '—'], ['Condition', fx.condition || '—'], ['Language', fx.language || '—'], ['Finish', fx.finish || '—'],
     ['On hand', `${p.onHand} / ${p.qty}${lots.length > 1 ? ` across ${lots.length} lots` : ''}`], ['Average unit cost', money(p.avgCost)], ['Cost basis', money(p.cost)], ['Total ever spent', money(p.spent)],
     ['Market', p.mp != null ? money(p.mp) + (m.source === 'manual' ? ' (manual)' : '') : '—'], ['Low listing', m.lowest != null ? money(m.lowest) : '—'],
-    [`Value @${valuePct()}%`, p.value != null ? money(p.value) : '—'], ['Gain', p.gain != null ? money(p.gain) : '—'],
+    [p.custom ? 'Value (custom override)' : `Value @${valuePct()}%`, p.value != null ? money(p.value) : '—'], ['Gain', p.gain != null ? money(p.gain) : '—'],
     ['Change 1d / 7d / 30d', [c1, c7, c30].map(c => c ? `${c.abs >= 0 ? '+' : ''}${money(c.abs)}` : '—').join(' / ')],
     ['Book', BOOK_NAMES[bookOf(it)]],
   ];
@@ -837,7 +850,7 @@ function showTip(it, x, y) {
   const m = it.market || {}, rem = onHand(it), uv = unitValue(it), fx = facetsOf(it);
   const rows = [['Type', `${fx.type} · ${it.category || '—'}`], ['On hand', `${rem} / ${it.qty}`], ['Unit cost', money(it.unitCost || 0)],
     ['Market', m.price != null ? money(m.price) + (m.source === 'manual' ? ' (manual)' : '') : '—'], ['Low listing', m.lowest != null ? money(m.lowest) : '—'],
-    [`Value @${valuePct()}%`, uv != null ? money(rem * uv) : '—'], ['Gain', uv != null ? money(rem * (uv - (it.unitCost || 0))) : '—'],
+    [hasOverride(it) ? 'Value (custom)' : `Value @${valuePct()}%`, uv != null ? money(rem * uv) : '—'], ['Gain', uv != null ? money(rem * (uv - (it.unitCost || 0))) : '—'],
     ['Acquired', `${it.purchaseDate || ''}${it.source ? ' · ' + it.source : ''}`], ['Location', it.location || '—']];
   if (m.updatedAt) rows.push(['Price as of', m.updatedAt.slice(0, 10)]);
   if (it.notes) rows.push(['Notes', it.notes]);
@@ -1091,6 +1104,23 @@ function submitBookMove() {
   $('movedlg').close(); markDirty();
 }
 
+// ---------- value override ----------
+let valRef = null;
+function openValueOverride(ref) {
+  valRef = ref; const lots = lotsFor(ref); if (!lots.length) return; const it = lots[0], mp = marketPrice(it);
+  $('valtitle').textContent = `Override value: ${refName(ref)}`;
+  $('valhint').textContent = `Normally ${mp != null ? money(mp) + ' market × ' + valuePct() + '% = ' + money(mp * valueRate()) : 'no market price, so no value'}. A custom value replaces that in every total${lots.length > 1 ? ` for all ${lots.length} lots` : ''}; the market price stays as it is.`;
+  $('v_val').value = hasOverride(it) ? it.valueOverride : (mp != null ? (mp * valueRate()).toFixed(2) : '');
+  $('valdlg').showModal(); $('v_val').focus(); $('v_val').select();
+}
+function submitValueOverride() {
+  const v = +$('v_val').value;
+  if (!(v >= 0) || $('v_val').value === '') { alert('Enter a value per unit.'); return; }
+  for (const it of lotsFor(valRef)) it.valueOverride = +v.toFixed(2);
+  $('valdlg').close(); markDirty();
+}
+function clearValueOverride() { for (const it of lotsFor(valRef)) delete it.valueOverride; $('valdlg').close(); markDirty(); }
+
 // ---------- market price ----------
 let matchRef = null;
 const matchLots = () => lotsFor(matchRef);
@@ -1199,7 +1229,7 @@ function renderAddMenu(catalogHits, liveHits, q) {
   if (!addOpts.length) { menu.innerHTML = q.length < 2 ? '' : `<div class="none">${CATALOG ? 'No match yet — keep typing, or add it by hand.' : 'Loading catalog…'}</div>`; menu.style.display = menu.innerHTML ? 'block' : 'none'; return; }
   let h = '';
   if (catalogHits.length) h += `<div class="hd">Riftbound</div>` + catalogHits.map((p, i) => `<div class="opt ${i === addSel ? 'sel' : ''}" data-i="${i}"><img src="${esc(imgOf(p.id))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div><div class="nm">${esc(p.n)}</div><div class="sb">${esc(p.s || '')}${p.num ? ' · #' + esc(p.num) : ''}${catalogKind(p) ? ' · ' + esc(catalogKind(p)) : ''}</div></div><div class="pr">${p.p != null ? money(p.p) : '<span class="dim">—</span>'}</div></div>`).join('');
-  if (liveHits.length) h += `<div class="hd">TCGplayer</div>` + liveHits.map((r, j) => { const i = catalogHits.length + j; return `<div class="opt ${i === addSel ? 'sel' : ''}" data-i="${i}"><img src="https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div><div class="nm">${esc(r.productName)}</div><div class="sb">${esc(r.setName || '')} · ${esc(r.productLine || '')}</div></div><div class="pr">${r.marketPrice != null ? money(r.marketPrice) : '<span class="dim">—</span>'}</div></div>`; }).join('');
+  if (liveHits.length) h += `<div class="hd">TCGplayer</div>` + liveHits.map((r, j) => { const i = catalogHits.length + j; return `<div class="opt ${i === addSel ? 'sel' : ''}" data-i="${i}"><img src="https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div><div class="nm">${esc(r.productName)}</div><div class="sb">${esc(r.setName || '')} · ${esc(r.productLine || '')}</div></div><div class="pr">${r.marketPrice != null ? money(r.marketPrice) : (r.lowestPrice != null ? `<span class="dim" title="no market price; lowest listing">low ${money(r.lowestPrice)}</span>` : '<span class="dim">no price</span>')}</div></div>`; }).join('');
   menu.innerHTML = h; menu.style.display = 'block';
   const sel = menu.querySelector('.opt.sel'); if (sel) sel.scrollIntoView({block: 'nearest'});
 }
@@ -1215,11 +1245,17 @@ async function onAddInput() {
   addTimer = setTimeout(async () => {
     const seq = ++liveSeq;
     try {
-      const res = await apiFetch('GET', null, `/market/search?q=${encodeURIComponent(q)}`);
-      if (!res.ok || seq !== liveSeq) return;
-      const j = await res.json();
-      const seen = new Set(lastCatalogHits.map(p => p.id));
-      lastLiveHits = (j.results || []).filter(r => !seen.has(r.productId) && !/riftbound/i.test(r.productLine || '')).slice(0, 8);
+      // TCGplayer names Japanese and promo cards by number ("Umbreon VMAX - 095/069"), so a wordy query misses them:
+      // search the full query and its first two words, then merge.
+      const core = norm(q).split(' ').filter(t => !['jp', 'japanese', 'jpn', 'eng', 'english', 'nm', 'holo', 'holofoil', 'foil'].includes(t)).slice(0, 2).join(' ');
+      const qs = [q]; if (core && core !== norm(q)) qs.push(core);
+      const lists = await Promise.all(qs.map(x => apiFetch('GET', null, `/market/search?q=${encodeURIComponent(x)}`).then(r => r.ok ? r.json() : {results: []}).catch(() => ({results: []}))));
+      if (seq !== liveSeq) return;
+      const seen = new Set(lastCatalogHits.map(p => p.id)), merged = [];
+      for (const j of lists) for (const r of (j.results || [])) { if (seen.has(r.productId) || /riftbound/i.test(r.productLine || '')) continue; seen.add(r.productId); merged.push(r); }
+      const toks = norm(q).split(' ').filter(Boolean);
+      const rank = r => { const hay = norm((r.productName || '') + ' ' + (r.setName || '') + ' ' + (r.productLine || '')); return toks.filter(t => hay.includes(t)).length + (/japan/i.test(r.productLine || '') && /\b(jp|japanese|jpn)\b/i.test(q) ? 2 : 0); };
+      lastLiveHits = merged.sort((a, b) => rank(b) - rank(a)).slice(0, 14);
       if ($('addq').value.trim() === q) renderAddMenu(lastCatalogHits, lastLiveHits, q);
     } catch {}
   }, 350);
@@ -1240,10 +1276,12 @@ function pickAdd(i) {
     game = line.includes('pokemon') ? 'Pokemon' : line.includes('one piece') ? 'One Piece' : line.includes('riftbound') ? 'Riftbound' : 'Other';
     product = r.productName; category = guessCategory(r.productName);
     m = {source: 'tcgplayer', productId: r.productId, productName: r.productName, setName: r.setName, url: r.url, image: `https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg`, price: r.marketPrice, lowest: r.lowestPrice, updatedAt: new Date().toISOString(), auto: false, via: 'typeahead'};
+    if (m.price == null && r.lowestPrice != null) { m.price = r.lowestPrice; m.priceBasis = 'lowest listing'; }
   }
   let loc = ''; try { loc = localStorage.getItem('vt_lastloc') || ''; } catch {}
+  const lang = o.kind === 'live' && /japan/i.test(o.r.productLine || '') ? 'Japanese' : 'English';
   const it = {id: uid(), book: BOOK, moves: [], createdAt: new Date().toISOString(), game, product, category, qty: 1, unitCost: m.price != null ? +(+m.price).toFixed(2) : 0,
-    purchaseDate: today(), payment: '', source: '', location: loc, tags: [], notes: '', attrs: category === 'Single Card' ? {condition: 'NM', language: 'English'} : {type: 'sealed'}, market: m};
+    purchaseDate: today(), payment: '', source: '', location: loc, tags: [], notes: '', attrs: category === 'Single Card' ? {condition: 'NM', language: lang} : {type: 'sealed'}, market: m};
   DOC.items.push(it);
   if (m.price != null) recordPrice(m.productId, m.price);
   RECENT.unshift(it.id); RECENT.splice(4);
@@ -1261,6 +1299,7 @@ function renderRecent() {
     ${imgFor(it) ? `<img src="${esc(imgFor(it))}" alt="" onerror="this.style.visibility='hidden'">` : ''}<div class="nm">${esc(displayName(it))}<div class="sub">${esc(it.market?.setName || it.category || '')}${it.market?.price != null ? ' · market ' + money(it.market.price) : ''}</div></div>
     <label>Qty<input class="qty" type="number" min="1" step="1" value="${it.qty}" data-f="qty"></label>
     <label>Cost/ea<input class="cost" type="number" min="0" step="0.01" value="${it.unitCost}" data-f="unitCost"></label>
+    <label>Value/ea${hasOverride(it) ? ' <span class="accent">custom</span>' : (marketPrice(it) == null ? ' <span class="warn">no market</span>' : '')}<input class="cost" type="number" min="0" step="0.01" value="${unitValue(it) != null ? unitValue(it).toFixed(2) : ''}" placeholder="what it's worth" data-f="valueOverride"></label>
     ${it.category === 'Single Card' ? `<label>Cond.<input class="cond" list="dl_condition" value="${esc(it.attrs?.condition || '')}" data-f="condition"></label>` : ''}
     <label>Location<input class="loc" list="dl_location" value="${esc(it.location || '')}" data-f="location"></label>
     <label>From<input class="src" list="dl_source" value="${esc(it.source || '')}" data-f="source"></label>
@@ -1275,6 +1314,7 @@ $('recent').addEventListener('input', e => {
   const v = e.target.value;
   if (f === 'qty') { const n = Math.max(1, Math.floor(+v || 1)); if (n >= movedQty(it)) it.qty = n; }
   else if (f === 'unitCost') it.unitCost = Math.max(0, +v || 0);
+  else if (f === 'valueOverride') { if (v === '') delete it.valueOverride; else it.valueOverride = Math.max(0, +v || 0); }
   else if (f === 'condition') { it.attrs ||= {}; it.attrs.condition = v.trim(); }
   else { it[f] = v.trim(); if (f === 'location') { try { localStorage.setItem('vt_lastloc', v.trim()); } catch {} } }
   dirty = true; setChip('busy', 'saving…'); clearTimeout(saveTimer); saveTimer = setTimeout(pushNow, 700);
