@@ -108,6 +108,9 @@ th.num{text-align:right}
 .card .kebab:hover{background:#12312d}
 .card .book{position:absolute;top:18px;left:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);color:var(--dim);border:1px solid var(--border)}
 .card .flag{position:absolute;top:18px;right:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);border:1px solid #6a5230;color:var(--warn)}
+.card .lots{position:absolute;top:18px;right:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);border:1px solid var(--border);color:var(--dim)}
+.card .flag{right:auto;left:18px;top:42px}
+.lott td{font-size:13px}
 .menu{position:fixed;z-index:60;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.5);min-width:170px}
 .menu button{display:block;width:100%;text-align:left;background:transparent;border-color:transparent;padding:7px 10px;border-radius:6px}
 .menu button:hover{background:var(--panel2);border-color:transparent}
@@ -638,45 +641,98 @@ function chgHtml(it) {
   const cls = c.abs > 0.005 ? 'up' : c.abs < -0.005 ? 'down' : 'flat', arrow = cls === 'up' ? '▲' : cls === 'down' ? '▼' : '';
   return `<span class="chg ${cls}" title="since ${esc(c.since)}">${arrow} ${c.abs >= 0 ? '+' : '-'}${money(Math.abs(c.abs))}${c.pct != null ? ` (${pct(c.pct)})` : ''}</span>`;
 }
+// ---------- positions: one tile per product, many lots (order lines) underneath ----------
+function posKey(it) {
+  const m = it.market || {};
+  if (m.source === 'tcgplayer' && m.productId) return 'p:' + m.productId + ':' + ((it.attrs || {}).condition || '') + ':' + bookOf(it);
+  return 'n:' + (it.game || '') + '|' + (it.product || '').trim().toLowerCase() + '|' + (it.category || '') + '|' + ((it.attrs || {}).condition || '') + ':' + bookOf(it);
+}
+function buildPositions(items) {
+  const g = new Map();
+  for (const it of items) { const k = posKey(it); if (!g.has(k)) g.set(k, {key: k, lots: []}); g.get(k).lots.push(it); }
+  for (const p of g.values()) {
+    p.lots.sort((a, b) => (a.purchaseDate || '').localeCompare(b.purchaseDate || '') || (a.createdAt || '').localeCompare(b.createdAt || ''));
+    const priced = p.lots.find(l => marketPrice(l) != null) || p.lots.find(l => l.market) || p.lots[0];
+    p.rep = priced; p.market = priced.market; p.qty = p.lots.reduce((a, l) => a + l.qty, 0); p.onHand = p.lots.reduce((a, l) => a + onHand(l), 0);
+    p.cost = p.lots.reduce((a, l) => a + onHand(l) * (l.unitCost || 0), 0); p.avgCost = p.onHand ? p.cost / p.onHand : (p.lots[0].unitCost || 0);
+    p.spent = p.lots.reduce((a, l) => a + l.qty * (l.unitCost || 0), 0);
+    p.mp = marketPrice(priced); p.uv = unitValue(priced); p.value = p.uv == null ? null : p.onHand * p.uv;
+    p.gain = p.value == null ? null : p.value - p.cost;
+    p.incoming = p.lots.filter(l => statusOf(l) === 'Incoming').reduce((a, l) => a + onHand(l), 0);
+    p.review = p.lots.some(l => l.market?.auto);
+    p.first = p.lots[0].purchaseDate || ''; p.last = p.lots[p.lots.length - 1].purchaseDate || '';
+    p.created = p.lots.reduce((a, l) => (l.createdAt || '') > a ? l.createdAt : a, '');
+    p.locations = [...new Set(p.lots.filter(l => onHand(l) > 0).map(l => l.location).filter(Boolean))];
+  }
+  return [...g.values()];
+}
+let POS = new Map();
+function sortPositions(ps) {
+  const k = $('sort').value;
+  const chg = p => { const c = changeFor(p.rep); return c ? c.abs * p.onHand : 0; };
+  const gp = p => p.gain == null || !p.cost ? -Infinity : p.gain / p.cost;
+  const cmp = {
+    new: (a, b) => b.last.localeCompare(a.last) || b.created.localeCompare(a.created), old: (a, b) => a.first.localeCompare(b.first),
+    value: (a, b) => (b.value ?? 0) - (a.value ?? 0), market: (a, b) => (b.mp ?? -1) - (a.mp ?? -1),
+    gain: (a, b) => (b.gain ?? -Infinity) - (a.gain ?? -Infinity), gainpct: (a, b) => gp(b) - gp(a),
+    chg: (a, b) => chg(b) - chg(a), chgneg: (a, b) => chg(a) - chg(b),
+    name: (a, b) => displayName(a.rep).localeCompare(displayName(b.rep)), qty: (a, b) => b.onHand - a.onHand,
+  }[k] || (() => 0);
+  return ps.slice().sort(cmp);
+}
 function renderGrid() {
-  const items = sortItems(visibleItems());
-  $('count').textContent = `${items.length} product${items.length !== 1 ? 's' : ''}`;
-  if (!items.length) { $('gridwrap').innerHTML = `<div class="empty" style="grid-column:1/-1">Nothing in ${BOOK_NAMES[BOOK]} matches.</div>`; return; }
-  $('gridwrap').innerHTML = items.map(it => {
-    const m = it.market || {}, fx = facetsOf(it), rem = onHand(it), mp = marketPrice(it), uv = unitValue(it), src = imgFor(it);
+  const items = visibleItems(), positions = sortPositions(buildPositions(items));
+  POS = new Map(positions.map(p => [p.key, p]));
+  $('count').textContent = `${positions.length} product${positions.length !== 1 ? 's' : ''} · ${items.length} lot${items.length !== 1 ? 's' : ''}`;
+  if (!positions.length) { $('gridwrap').innerHTML = `<div class="empty" style="grid-column:1/-1">Nothing in ${BOOK_NAMES[BOOK]} matches.</div>`; return; }
+  $('gridwrap').innerHTML = positions.map(p => {
+    const it = p.rep, m = p.market || {}, fx = facetsOf(it), src = imgFor(it), ref = jsArg(p.key);
     const line1 = [fx.rarity || (fx.type === 'Sealed' ? fx.category : null), m.number ? '#' + m.number : null].filter(Boolean).join(' • ');
     const extras = [fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');
-    const gain = uv == null ? null : rem * (uv - (it.unitCost || 0));
-    return `<div class="card" data-id="${it.id}">
-      ${fx.status === 'Incoming' ? `<span class="book">incoming</span>` : ''}${m.auto ? `<span class="flag" title="Auto-matched — check the printing">review</span>` : ''}
-      <div class="img" onclick="openDetails('${it.id}')">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}</div>
+    return `<div class="card" data-pos="${esc(p.key)}">
+      ${p.incoming ? `<span class="book">${p.incoming === p.onHand ? 'incoming' : p.incoming + ' incoming'}</span>` : ''}${p.lots.length > 1 ? `<span class="lots" title="${p.lots.length} order lines">${p.lots.length} lots</span>` : ''}${p.review ? `<span class="flag" title="Auto-matched — check the printing">review</span>` : ''}
+      <div class="img" onclick="openDetails(${ref})">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}</div>
       <div class="ttl">${esc(displayName(it))}</div>
       ${m.setName ? `<div class="set" onclick="toggleF('set', ${jsArg(m.setName)})">${esc(m.setName)}</div>` : `<div class="set" style="text-decoration:none;cursor:default">${esc(fx.type === 'Sealed' ? fx.category : it.game)}</div>`}
       ${line1 ? `<div class="meta">${esc(line1)}</div>` : ''}
       ${fx.condition || extras ? `<div class="meta">${fx.condition ? `<span class="c">${esc(fx.condition)}</span>` : ''}${fx.condition && extras ? ' • ' : ''}${esc(extras)}</div>` : ''}
-      <div class="price">${mp == null ? `<span class="dim" style="font-size:14px;cursor:pointer" onclick="openMatch('${it.id}')">no market price</span>` : money(mp)}${mp != null ? chgHtml(it) : ''}</div>
-      <div class="cost">cost ${money(it.unitCost || 0)}/ea${uv != null ? ` · value ${money(rem * uv)} · <span class="${gain >= 0 ? 'good' : 'bad'}">${gain >= 0 ? '+' : ''}${money(gain)}</span>` : ''}</div>
-      <div class="foot"><span class="qty">Qty: ${rem}${rem !== it.qty ? `<span class="dim"> / ${it.qty}</span>` : ''}</span><button class="kebab" onclick="openMenu(event, '${it.id}')">⋮</button></div>
+      <div class="price">${p.mp == null ? `<span class="dim" style="font-size:14px;cursor:pointer" onclick="openMatch(${ref})">no market price</span>` : money(p.mp)}${p.mp != null ? chgHtml(it) : ''}</div>
+      <div class="cost">avg cost ${money(p.avgCost)}/ea${p.value != null ? ` · value ${money(p.value)} · <span class="${p.gain >= 0 ? 'good' : 'bad'}">${p.gain >= 0 ? '+' : ''}${money(p.gain)}</span>` : ''}${p.locations.length ? `<br>${esc(p.locations.slice(0, 3).join(', '))}${p.locations.length > 3 ? ` +${p.locations.length - 3}` : ''}` : ''}</div>
+      <div class="foot"><span class="qty">Qty: ${p.onHand}${p.onHand !== p.qty ? `<span class="dim"> / ${p.qty}</span>` : ''}</span><button class="kebab" onclick="openMenu(event, ${ref})">⋮</button></div>
     </div>`;
   }).join('');
 }
-function openMenu(ev, id) {
+// a "ref" is either an item id or a position key ("p:…" / "n:…")
+function lotsFor(ref) {
+  if (ref.startsWith('p:') || ref.startsWith('n:')) { const p = buildPositions(DOC.items.filter(it => posKey(it) === ref))[0]; return p ? p.lots : []; }
+  const it = DOC.items.find(x => x.id === ref); return it ? [it] : [];
+}
+const liveLots = ref => lotsFor(ref).filter(l => onHand(l) > 0);
+const refName = ref => { const l = lotsFor(ref); return l.length ? displayName(l[0]) : ''; };
+const refOnHand = ref => lotsFor(ref).reduce((a, l) => a + onHand(l), 0);
+function takeFifo(ref, qty) {
+  const out = []; let left = qty;
+  for (const l of liveLots(ref)) { if (left <= 0) break; const n = Math.min(left, onHand(l)); out.push([l, n]); left -= n; }
+  return out;
+}
+function openMenu(ev, ref) {
   ev.stopPropagation();
-  const it = DOC.items.find(x => x.id === id), rem = onHand(it), other = BOOK === 'business' ? 'personal collection' : 'business';
+  const lots = lotsFor(ref), rem = refOnHand(ref), other = BOOK === 'business' ? 'personal collection' : 'business', r = jsArg(ref);
+  const single = lots.length === 1;
   const menu = $('menu');
   menu.innerHTML = [
-    rem > 0 ? `<button onclick="closeMenu();openSale('${id}')">Sell</button>` : '',
-    rem > 0 ? `<button onclick="closeMenu();openTrade('${id}')">Trade</button>` : '',
-    rem > 0 ? `<button onclick="closeMenu();openBookMove('${id}')">Move to ${other}</button>` : '',
-    `<button onclick="closeMenu();openMatch('${id}')">Market price</button>`,
-    `<button onclick="closeMenu();openDetails('${id}')">Details</button>`,
-    `<button onclick="closeMenu();openForm('${id}')">Edit</button>`,
-    `<button class="danger" onclick="closeMenu();delItem('${id}')">Delete</button>`,
+    rem > 0 ? `<button onclick="closeMenu();openSale(${r})">Sell</button>` : '',
+    rem > 0 ? `<button onclick="closeMenu();openTrade(${r})">Trade</button>` : '',
+    rem > 0 ? `<button onclick="closeMenu();openBookMove(${r})">Move to ${other}</button>` : '',
+    `<button onclick="closeMenu();openMatch(${r})">Market price</button>`,
+    `<button onclick="closeMenu();openDetails(${r})">${single ? 'Details' : `Details · ${lots.length} lots`}</button>`,
+    single ? `<button onclick="closeMenu();openForm('${lots[0].id}')">Edit</button>` : '',
+    single ? `<button class="danger" onclick="closeMenu();delItem('${lots[0].id}')">Delete</button>` : '',
   ].join('');
   menu.style.display = 'block';
-  const r = ev.currentTarget.getBoundingClientRect();
-  menu.style.left = Math.min(r.left, window.innerWidth - 190) + 'px';
-  menu.style.top = Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  const rect = ev.currentTarget.getBoundingClientRect();
+  menu.style.left = Math.min(rect.left, window.innerWidth - 190) + 'px';
+  menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
 }
 function closeMenu() { $('menu').style.display = 'none'; }
 document.addEventListener('click', e => { if (!e.target.closest('#menu')) closeMenu(); });
@@ -690,26 +746,30 @@ function sparkline(h) {
   const pts = h.map((p, i) => `${xs[i].toFixed(1)},${sc(p[1]).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${ht}" width="100%" height="60" style="display:block;margin-top:6px"><polyline fill="none" stroke="#66c7ff" stroke-width="2" points="${pts}"/></svg><div class="sub">${esc(h[0][0])} ${money(h[0][1])} → ${esc(h[h.length - 1][0])} ${money(h[h.length - 1][1])} · ${h.length} points</div>`;
 }
-function openDetails(id) {
-  const it = DOC.items.find(x => x.id === id), m = it.market || {}, fx = facetsOf(it), rem = onHand(it), uv = unitValue(it), mp = marketPrice(it);
+function openDetails(ref) {
+  const lots = lotsFor(ref); if (!lots.length) return;
+  const p = buildPositions(lots)[0], it = p.rep, m = p.market || {}, fx = facetsOf(it);
   const c1 = changeFor(it, 1), c7 = changeFor(it, 7), c30 = changeFor(it, 30);
   const rows = [
-    ['Listed as', it.product], ['Game', it.game], ['Type', `${fx.type} · ${it.category || '—'}`], ['Set', m.setName || '—'],
-    ['Number', m.number || '—'], ['Rarity', m.rarity || '—'], ['Printing', fx.printing || '—'], ['Condition', fx.condition || '—'],
-    ['Language', fx.language || '—'], ['Finish', fx.finish || '—'],
-    ['On hand', `${rem} / ${it.qty}`], ['Unit cost', money(it.unitCost || 0)], ['Cost basis', money(rem * (it.unitCost || 0))],
-    ['Market', mp != null ? money(mp) + (m.source === 'manual' ? ' (manual)' : '') : '—'], ['Low listing', m.lowest != null ? money(m.lowest) : '—'],
-    [`Value @${valuePct()}%`, uv != null ? money(rem * uv) : '—'], ['Gain', uv != null ? money(rem * (uv - (it.unitCost || 0))) : '—'],
+    ['Game', it.game], ['Type', `${fx.type} · ${it.category || '—'}`], ['Set', m.setName || '—'], ['Number', m.number || '—'],
+    ['Rarity', m.rarity || '—'], ['Printing', fx.printing || '—'], ['Condition', fx.condition || '—'], ['Language', fx.language || '—'], ['Finish', fx.finish || '—'],
+    ['On hand', `${p.onHand} / ${p.qty}${lots.length > 1 ? ` across ${lots.length} lots` : ''}`], ['Average unit cost', money(p.avgCost)], ['Cost basis', money(p.cost)], ['Total ever spent', money(p.spent)],
+    ['Market', p.mp != null ? money(p.mp) + (m.source === 'manual' ? ' (manual)' : '') : '—'], ['Low listing', m.lowest != null ? money(m.lowest) : '—'],
+    [`Value @${valuePct()}%`, p.value != null ? money(p.value) : '—'], ['Gain', p.gain != null ? money(p.gain) : '—'],
     ['Change 1d / 7d / 30d', [c1, c7, c30].map(c => c ? `${c.abs >= 0 ? '+' : ''}${money(c.abs)}` : '—').join(' / ')],
-    ['Acquired', `${it.purchaseDate || ''}${it.source ? ' · ' + it.source : ''}${it.payment ? ' · paid by ' + it.payment : ''}`],
-    ['Location', it.location || '—'], ['Book', BOOK_NAMES[bookOf(it)]], ['Tags', (it.tags || []).join(', ') || '—'], ['Notes', it.notes || '—'],
+    ['Book', BOOK_NAMES[bookOf(it)]],
   ];
-  const moves = (it.moves || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(mv => mv.type === 'sold'
+  const lotRows = lots.map(l => `<tr><td>${esc(l.purchaseDate || '')}<div class="sub">${esc(l.source || '')}${l.payment ? ' · ' + esc(l.payment) : ''}</div></td>
+      <td class="num">${onHand(l)}<span class="dim">/${l.qty}</span></td><td class="num">${money(l.unitCost || 0)}</td><td>${esc(l.location || '')}<div class="sub">${esc(statusOf(l))}${l.notes ? ' · ' + esc(l.notes) : ''}</div></td>
+      <td class="actions">${onHand(l) > 0 ? `<button class="small primary" onclick="$('detdlg').close();openSale('${l.id}')">Sell</button>` : ''}<button class="small" onclick="$('detdlg').close();openForm('${l.id}')">Edit</button><button class="small danger" onclick="$('detdlg').close();delItem('${l.id}')">✕</button></td></tr>`).join('');
+  const moves = lots.flatMap(l => (l.moves || []).map(mv => ({l, mv}))).sort((a, b) => (b.mv.date || '').localeCompare(a.mv.date || '')).map(({l, mv}) => mv.type === 'sold'
     ? `<div class="row"><span>${esc(mv.date)} · sold ${mv.qty} @ ${money(mv.unitPrice)}${mv.channel ? ' · ' + esc(mv.channel) : ''}</span><span>${money(mv.qty * mv.unitPrice - (mv.fee || 0))}</span></div>`
     : `<div class="row"><span>${esc(mv.date)} · traded ${mv.qty}${mv.counterparty ? ' with ' + esc(mv.counterparty) : ''}${mv.received ? ' for ' + esc(mv.received) : ''}</span><span>${money(mv.value || 0)}</span></div>`).join('');
   $('dettitle').textContent = displayName(it);
-  $('detbody').innerHTML = `<div>${bigImgFor(it) ? `<img src="${esc(bigImgFor(it))}" alt="">` : ''}${m.url ? `<p class="sub"><a href="${esc(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open on TCGplayer</a></p>` : ''}${sparkline(histFor(it))}</div>
-    <div>${rows.map(([k, v]) => `<div class="row"><span class="dim">${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}${moves ? `<div class="subh">Sales &amp; trades</div>${moves}` : ''}</div>`;
+  $('detbody').innerHTML = `<div>${bigImgFor(it) ? `<img src="${esc(bigImgFor(it))}" alt="">` : ''}${m.url ? `<p class="sub"><a href="${esc(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open on TCGplayer</a></p>` : ''}<p class="sub">Listed as: ${esc(it.product)}</p>${sparkline(histFor(it))}</div>
+    <div>${rows.map(([k, v]) => `<div class="row"><span class="dim">${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
+    <div class="subh">Lots (${lots.length})</div><div class="tblwrap"><table class="lott"><tr><th>Acquired</th><th class="num">On hand</th><th class="num">Unit cost</th><th>Location</th><th></th></tr>${lotRows}</table></div>
+    ${moves ? `<div class="subh">Sales &amp; trades</div>${moves}` : ''}</div>`;
   $('detdlg').showModal();
 }
 
@@ -941,73 +1001,78 @@ function delItem(id) {
 }
 
 // ---------- sell ----------
-let saleItemId = null;
-function openSale(id) {
-  saleItemId = id; const it = DOC.items.find(x => x.id === id);
-  $('selltitle').textContent = `Sell: ${displayName(it)} (${onHand(it)} on hand)`;
-  $('s_qty').value = 1; $('s_qty').max = onHand(it); $('s_price').value = marketPrice(it) != null ? marketPrice(it).toFixed(2) : '';
+let saleRef = null;
+function openSale(ref) {
+  saleRef = ref; const lots = liveLots(ref); if (!lots.length) return; const it = lots[0], rem = refOnHand(ref);
+  $('selltitle').textContent = `Sell: ${refName(ref)} (${rem} on hand${lots.length > 1 ? `, ${lots.length} lots, oldest first` : ''})`;
+  $('s_qty').value = 1; $('s_qty').max = rem; $('s_price').value = marketPrice(it) != null ? marketPrice(it).toFixed(2) : '';
   $('s_date').value = today(); $('s_note').value = ''; $('s_channel').value = 'Machine'; $('s_fee').value = '';
   $('dl_channel').innerHTML = channels().map(c => `<option value="${esc(c)}">`).join('');
   $('selldlg').showModal();
 }
 function submitSale() {
-  const it = DOC.items.find(x => x.id === saleItemId), qty = Math.floor(+$('s_qty').value || 0), price = +$('s_price').value;
-  if (qty < 1 || qty > onHand(it)) { alert(`Quantity must be 1–${onHand(it)}.`); return; }
+  const rem = refOnHand(saleRef), qty = Math.floor(+$('s_qty').value || 0), price = +$('s_price').value;
+  if (qty < 1 || qty > rem) { alert(`Quantity must be 1–${rem}.`); return; }
   if (!(price >= 0) || $('s_price').value === '') { alert('Enter the sale price per unit.'); return; }
-  (it.moves ||= []).push({id: uid(), type: 'sold', qty, unitPrice: price, date: $('s_date').value || today(), channel: $('s_channel').value.trim(), fee: Math.max(0, +$('s_fee').value || 0), note: $('s_note').value.trim()});
+  const fee = Math.max(0, +$('s_fee').value || 0), date = $('s_date').value || today(), channel = $('s_channel').value.trim(), note = $('s_note').value.trim();
+  for (const [lot, n] of takeFifo(saleRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, channel, fee: +(fee * n / qty).toFixed(2), note});
   $('selldlg').close(); markDirty();
 }
 
 // ---------- trade ----------
-let tradeItemId = null;
-function openTrade(id) {
-  tradeItemId = id; const it = DOC.items.find(x => x.id === id);
-  $('tradetitle').textContent = `Trade away: ${displayName(it)} (${onHand(it)} on hand)`;
-  $('t_qty').value = 1; $('t_qty').max = onHand(it); $('t_value').value = marketPrice(it) != null ? marketPrice(it).toFixed(2) : '';
+let tradeRef = null;
+function openTrade(ref) {
+  tradeRef = ref; const lots = liveLots(ref); if (!lots.length) return; const it = lots[0], rem = refOnHand(ref);
+  $('tradetitle').textContent = `Trade away: ${refName(ref)} (${rem} on hand${lots.length > 1 ? `, ${lots.length} lots, oldest first` : ''})`;
+  $('t_qty').value = 1; $('t_qty').max = rem; $('t_value').value = marketPrice(it) != null ? marketPrice(it).toFixed(2) : '';
   $('t_date').value = today(); $('t_party').value = ''; $('t_received').value = ''; $('t_note').value = ''; $('t_add').checked = true;
   $('tradedlg').showModal();
 }
 function submitTrade() {
-  const it = DOC.items.find(x => x.id === tradeItemId), qty = Math.floor(+$('t_qty').value || 0), value = +$('t_value').value;
-  if (qty < 1 || qty > onHand(it)) { alert(`Quantity must be 1–${onHand(it)}.`); return; }
+  const rem = refOnHand(tradeRef), qty = Math.floor(+$('t_qty').value || 0), value = +$('t_value').value;
+  if (qty < 1 || qty > rem) { alert(`Quantity must be 1–${rem}.`); return; }
   if (!(value >= 0) || $('t_value').value === '') { alert('Enter the value you received.'); return; }
-  const mv = {id: uid(), type: 'traded', qty, value, date: $('t_date').value || today(), counterparty: $('t_party').value.trim(), received: $('t_received').value.trim(), note: $('t_note').value.trim()};
-  (it.moves ||= []).push(mv); $('tradedlg').close(); markDirty();
-  if ($('t_add').checked) openForm(null, {game: it.game, product: mv.received || '', category: it.category, qty: 1, unitCost: value, purchaseDate: mv.date, payment: 'Trade', source: 'Trade' + (mv.counterparty ? ' with ' + mv.counterparty : ''), location: it.location, tags: ['trade-in'], notes: `Received for ${qty}x ${it.product}`, fromTradeOf: {itemId: it.id, moveId: mv.id}});
+  const date = $('t_date').value || today(), counterparty = $('t_party').value.trim(), received = $('t_received').value.trim(), note = $('t_note').value.trim();
+  let first = null, firstLot = null;
+  for (const [lot, n] of takeFifo(tradeRef, qty)) { const mv = {id: uid(), type: 'traded', qty: n, value: +(value * n / qty).toFixed(2), date, counterparty, received, note}; (lot.moves ||= []).push(mv); if (!first) { first = mv; firstLot = lot; } }
+  $('tradedlg').close(); markDirty();
+  const it = firstLot;
+  if ($('t_add').checked && it) openForm(null, {game: it.game, product: received || '', category: it.category, qty: 1, unitCost: value, purchaseDate: date, payment: 'Trade', source: 'Trade' + (counterparty ? ' with ' + counterparty : ''), location: it.location, tags: ['trade-in'], notes: `Received for ${qty}x ${displayName(it)}`, fromTradeOf: {itemId: it.id, moveId: first.id}});
 }
 function delMove(itemId, moveId) { if (!confirm('Delete this record? The units go back into inventory.')) return; const it = DOC.items.find(x => x.id === itemId); it.moves = it.moves.filter(m => m.id !== moveId); markDirty(); }
 
 // ---------- move between books ----------
-let bookMoveId = null;
-function openBookMove(id) {
-  bookMoveId = id; const it = DOC.items.find(x => x.id === id), to = bookOf(it) === 'business' ? 'personal' : 'business', mp = marketPrice(it);
-  $('movetitle').textContent = to === 'personal' ? `Move to personal collection: ${displayName(it)}` : `Move back to business: ${displayName(it)}`;
-  $('movehint').textContent = to === 'personal' ? `Recorded as a sale from the business to you at ${valuePct()}% of market. The item appears in your collection at that cost.` : `Recorded as a sale from your collection to the business at ${valuePct()}% of market.`;
-  $('b_qty').value = 1; $('b_qty').max = onHand(it); $('b_price').value = mp != null ? (mp * valueRate()).toFixed(2) : ''; $('b_date').value = today(); $('b_note').value = '';
+let bookMoveRef = null;
+function openBookMove(ref) {
+  bookMoveRef = ref; const lots = liveLots(ref); if (!lots.length) return; const it = lots[0], to = bookOf(it) === 'business' ? 'personal' : 'business', mp = marketPrice(it), rem = refOnHand(ref);
+  $('movetitle').textContent = to === 'personal' ? `Move to personal collection: ${refName(ref)}` : `Move back to business: ${refName(ref)}`;
+  $('movehint').textContent = (to === 'personal' ? `Recorded as a sale from the business to you at ${valuePct()}% of market. The item appears in your collection at that cost.` : `Recorded as a sale from your collection to the business at ${valuePct()}% of market.`) + (lots.length > 1 ? ' Units come from the oldest lot first.' : '');
+  $('b_qty').value = 1; $('b_qty').max = rem; $('b_price').value = mp != null ? (mp * valueRate()).toFixed(2) : ''; $('b_date').value = today(); $('b_note').value = '';
   const other = DOC.items.filter(x => bookOf(x) === to && x.location);
   $('b_location').value = other.length ? other[other.length - 1].location : (to === 'personal' ? 'Home' : it.location || '');
   $('movedlg').showModal();
 }
 function submitBookMove() {
-  const it = DOC.items.find(x => x.id === bookMoveId), to = bookOf(it) === 'business' ? 'personal' : 'business';
+  const lots = liveLots(bookMoveRef), it = lots[0], to = bookOf(it) === 'business' ? 'personal' : 'business', rem = refOnHand(bookMoveRef);
   const qty = Math.floor(+$('b_qty').value || 0), price = +$('b_price').value;
-  if (qty < 1 || qty > onHand(it)) { alert(`Quantity must be 1–${onHand(it)}.`); return; }
+  if (qty < 1 || qty > rem) { alert(`Quantity must be 1–${rem}.`); return; }
   if (!(price >= 0) || $('b_price').value === '') { alert(marketPrice(it) == null ? 'No market price yet — set one first, or type a price.' : 'Enter a price.'); return; }
-  const date = $('b_date').value || today();
+  const date = $('b_date').value || today(), note = $('b_note').value.trim(), location = $('b_location').value.trim();
   const twin = {id: uid(), book: to, moves: [], createdAt: new Date().toISOString(), game: it.game, product: it.product, category: it.category, qty, unitCost: price,
     purchaseDate: date, payment: to === 'personal' ? 'Personal' : 'Business', source: to === 'personal' ? 'Business inventory' : 'Personal collection',
-    location: $('b_location').value.trim(), tags: (it.tags || []).filter(t => !['incoming', 'delivered', 'target', 'cardmarket', 'bandai'].includes(t)),
-    notes: $('b_note').value.trim() || `From ${BOOK_NAMES[bookOf(it)]} · ${it.product}`, market: it.market ? {...it.market} : undefined, attrs: {...(it.attrs || {})}, fromItemId: it.id};
+    location, tags: (it.tags || []).filter(t => !['incoming', 'delivered', 'target', 'cardmarket', 'bandai'].includes(t)),
+    notes: note || `From ${BOOK_NAMES[bookOf(it)]} · ${it.product}`, market: it.market ? {...it.market} : undefined, attrs: {...(it.attrs || {})}, fromItemId: it.id};
   DOC.items.push(twin);
-  (it.moves ||= []).push({id: uid(), type: 'sold', qty, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: $('b_note').value.trim() || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id});
+  for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: note || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id});
   $('movedlg').close(); markDirty();
 }
 
 // ---------- market price ----------
-let matchItemId = null;
-function openMatch(id, autoSearch) {
-  matchItemId = id; const it = DOC.items.find(x => x.id === id);
-  $('matchtitle').textContent = `Market price: ${it.product}`;
+let matchRef = null;
+const matchLots = () => lotsFor(matchRef);
+function openMatch(ref, autoSearch) {
+  matchRef = ref; const lots = lotsFor(ref); if (!lots.length) return; const it = lots[0];
+  $('matchtitle').textContent = `Market price: ${it.product}${lots.length > 1 ? ` (applies to all ${lots.length} lots)` : ''}`;
   $('m_q').value = it.product; $('m_results').style.display = 'none'; $('m_results').innerHTML = '';
   $('m_manual').value = it.market?.source === 'manual' ? it.market.price : '';
   describeMarket(it); $('matchdlg').showModal();
@@ -1019,7 +1084,7 @@ function describeMarket(it) {
     : `TCGplayer: <b>${esc(m.productName || m.productId)}</b> ${money(m.price)}${m.setName ? ' · ' + esc(m.setName) : ''}${m.updatedAt ? ' · ' + esc(m.updatedAt.slice(0, 10)) : ''}${m.auto ? ' · <span class="warn">auto-matched</span>' : ''}${m.url ? ` · <a href="${esc(m.url)}" target="_blank" rel="noopener">open</a>` : ''}`;
 }
 async function runMatchSearch() {
-  const it = DOC.items.find(x => x.id === matchItemId), q = $('m_q').value.trim();
+  const it = matchLots()[0], q = $('m_q').value.trim();
   if (!q) return;
   $('m_results').style.display = ''; $('m_results').innerHTML = '<div class="empty">Searching TCGplayer…</div>';
   try {
@@ -1034,19 +1099,19 @@ async function runMatchSearch() {
   } catch (e) { $('m_results').innerHTML = `<div class="empty bad">Search failed: ${esc(e.message)}</div>`; }
 }
 function pickMatch(i) {
-  const r = window._cands[i], it = DOC.items.find(x => x.id === matchItemId);
-  it.market = {source: 'tcgplayer', productId: r.productId, productName: r.productName, setName: r.setName, url: r.url, image: `https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg`,
+  const r = window._cands[i], lots = matchLots();
+  for (const it of lots) it.market = {source: 'tcgplayer', productId: r.productId, productName: r.productName, setName: r.setName, url: r.url, image: `https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg`,
     price: r.marketPrice, lowest: r.lowestPrice, updatedAt: new Date().toISOString(), auto: false};
   recordPrice(r.productId, r.marketPrice);
-  describeMarket(it); markDirty(); $('matchdlg').close();
+  describeMarket(lots[0]); markDirty(); $('matchdlg').close();
 }
 function setManualPrice() {
-  const it = DOC.items.find(x => x.id === matchItemId), p = +$('m_manual').value;
+  const lots = matchLots(), p = +$('m_manual').value;
   if (!(p >= 0) || $('m_manual').value === '') { alert('Enter a price.'); return; }
-  it.market = {source: 'manual', price: p, updatedAt: new Date().toISOString(), auto: false};
-  describeMarket(it); markDirty(); $('matchdlg').close();
+  for (const it of lots) it.market = {source: 'manual', price: p, updatedAt: new Date().toISOString(), auto: false};
+  describeMarket(lots[0]); markDirty(); $('matchdlg').close();
 }
-function clearMarket() { const it = DOC.items.find(x => x.id === matchItemId); delete it.market; describeMarket(it); markDirty(); }
+function clearMarket() { const lots = matchLots(); for (const it of lots) delete it.market; describeMarket(lots[0]); markDirty(); }
 async function refreshPrices() {
   const targets = DOC.items.filter(it => it.market && it.market.source === 'tcgplayer' && it.market.productId);
   if (!targets.length) { alert('No products are matched to TCGplayer yet.'); return; }

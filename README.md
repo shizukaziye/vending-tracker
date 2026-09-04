@@ -5,11 +5,14 @@ personal collection. Every item is acquired, then either sold or traded. Stock o
 valued at a set share of TCGplayer market price (90% by default).
 
 - **Page** (`index.html`): one self-contained file on GitHub Pages.
-  - **Cards view** (default): a tile per product with the TCGplayer image, set, rarity and
+  - **Cards view** (default): one tile per product (all order lines of the same product and
+    condition consolidated, quantity summed, cost averaged) with the TCGplayer image, set, rarity and
     collector number, condition and finish, market price with the change since the last price
     snapshot, quantity on hand, cost and gain, and a ⋮ menu (Sell, Trade, move between books,
     Market price, Details, Edit, Delete). Clicking the image opens Details with a price history
-    sparkline. List view is the old table; hover a row for details.
+    sparkline and the list of lots (each order line with its date, cost, source, buyer and
+    location, editable one by one). Selling, trading or moving from a consolidated tile draws
+    from the oldest lot first; setting a market price applies to every lot. List view is the old table; hover a row for details.
   - **Facets** on the left, all derived automatically and combinable: status, game, type (sealed or
     single), product kind, set, rarity, printing (standard, showcase, promo, overnumbered,
     signature), condition, finish, language, source, location, who paid, market-price state, and
