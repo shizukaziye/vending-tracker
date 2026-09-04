@@ -677,10 +677,11 @@ function chgHtml(it) {
   return `<span class="chg ${cls}" title="since ${esc(c.since)}">${arrow} ${c.abs >= 0 ? '+' : '-'}${money(Math.abs(c.abs))}${c.pct != null ? ` (${pct(c.pct)})` : ''}</span>`;
 }
 // ---------- positions: one tile per product, many lots (order lines) underneath ----------
+const condKey = it => { const c = ((it.attrs || {}).condition || '').trim().toUpperCase(); return c && c !== 'NM' && c !== 'NEAR MINT' && c !== 'SEALED' ? c : ''; };  // NM / unknown / sealed group together
 function posKey(it) {
   const m = it.market || {};
-  if (m.source === 'tcgplayer' && m.productId) return 'p:' + m.productId + ':' + ((it.attrs || {}).condition || '') + ':' + bookOf(it);
-  return 'n:' + (it.game || '') + '|' + (it.product || '').trim().toLowerCase() + '|' + (it.category || '') + '|' + ((it.attrs || {}).condition || '') + ':' + bookOf(it);
+  if (m.source === 'tcgplayer' && m.productId) return 'p:' + m.productId + ':' + condKey(it) + ':' + bookOf(it);
+  return 'n:' + (it.game || '') + '|' + (it.product || '').trim().toLowerCase() + '|' + (it.category || '') + '|' + condKey(it) + ':' + bookOf(it);
 }
 function buildPositions(items) {
   const g = new Map();
