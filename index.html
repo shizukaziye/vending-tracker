@@ -1255,7 +1255,8 @@ async function onAddInput() {
       const seen = new Set(lastCatalogHits.map(p => p.id)), merged = [];
       for (const j of lists) for (const r of (j.results || [])) { if (seen.has(r.productId) || /riftbound/i.test(r.productLine || '')) continue; seen.add(r.productId); merged.push(r); }
       const toks = norm(q).split(' ').filter(Boolean);
-      const rank = r => { const hay = norm((r.productName || '') + ' ' + (r.setName || '') + ' ' + (r.productLine || '')); return toks.filter(t => hay.includes(t)).length + (/japan/i.test(r.productLine || '') && /\b(jp|japanese|jpn)\b/i.test(q) ? 2 : 0); };
+      const wantJp = /\b(jp|japanese|jpn)\b/i.test(q), isJp = r => /japan/i.test(r.productLine || '');
+      const rank = r => { const hay = norm((r.productName || '') + ' ' + (r.setName || '') + ' ' + (r.productLine || '')); let n = toks.filter(t => hay.includes(t)).length; if (wantJp) n += isJp(r) ? 6 : -3; if (/\d{3}\/\d{3}/.test(r.productName || '') && toks.some(t => (r.productName || '').includes(t.replace(/^0+/, '')))) n += 1; return n; };
       lastLiveHits = merged.sort((a, b) => rank(b) - rank(a)).slice(0, 14);
       if ($('addq').value.trim() === q) renderAddMenu(lastCatalogHits, lastLiveHits, q);
     } catch {}
