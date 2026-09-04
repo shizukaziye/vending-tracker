@@ -5,6 +5,12 @@ personal collection. Every item is acquired, then either sold or traded. Stock o
 valued at a set share of TCGplayer market price (90% by default).
 
 - **Page** (`index.html`): one self-contained file on GitHub Pages.
+  - **Adding stock**: type in the "Add" box at the top (e.g. `ahri sig`). Every Riftbound
+    printing from the catalog appears as you type, with image, set, number, printing and market
+    price; TCGplayer search results for other games follow a moment later. Pick one and it is
+    added at quantity 1, matched and priced, with a "just added" strip to adjust quantity,
+    cost, condition, location, source and who paid. Arrow keys and Enter work too. The old form
+    is behind the small "manual" button.
   - **Cards view** (default): one tile per product (all order lines of the same product and
     condition consolidated, quantity summed, cost averaged) with the TCGplayer image, set, rarity and
     collector number, condition and finish, market price with the change since the last price

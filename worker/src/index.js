@@ -3,6 +3,7 @@
 // PUT  /data {baseRev, items, settings, history} -> saves if baseRev matches current rev, else 409 with current doc
 // GET  /market/search?q=&line=    -> TCGplayer product candidates with market prices (proxied; browsers can't call it directly)
 // GET  /market/price?ids=1,2,3    -> fresh market price per TCGplayer product id
+// GET  /catalog/riftbound         -> every Riftbound printing (tcgcsv feed), cached in KV for 20h, for type-ahead adds
 
 const EMPTY = '{"rev":0,"items":[]}';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
@@ -35,6 +36,30 @@ async function tcgSearch(q, line) {
     productLine: x.productLineName, marketPrice: x.marketPrice ?? null, lowestPrice: x.lowestPrice ?? null,
     url: x.productUrlName ? `https://www.tcgplayer.com/product/${Math.round(x.productId)}/${x.productUrlName}` : `https://www.tcgplayer.com/product/${Math.round(x.productId)}`,
   }));
+}
+
+const CATALOG_TTL = 20 * 3600 * 1000;
+async function riftboundCatalog(env) {
+  const cached = await env.DATA.get('catalog:riftbound', 'json');
+  if (cached && Date.now() - cached.at < CATALOG_TTL) return cached;
+  const h = { 'User-Agent': UA, Accept: 'application/json' };
+  const groups = (await (await fetch('https://tcgcsv.com/tcgplayer/89/groups', { headers: h })).json()).results;
+  const out = [];
+  for (const g of groups) {
+    const [pr, px] = await Promise.all([
+      fetch(`https://tcgcsv.com/tcgplayer/89/${g.groupId}/products`, { headers: h }).then((r) => r.json()).catch(() => ({ results: [] })),
+      fetch(`https://tcgcsv.com/tcgplayer/89/${g.groupId}/prices`, { headers: h }).then((r) => r.json()).catch(() => ({ results: [] })),
+    ]);
+    const price = {};
+    for (const p of px.results || []) if (p.marketPrice != null && (price[p.productId] == null || p.marketPrice > price[p.productId])) price[p.productId] = p.marketPrice;
+    for (const p of pr.results || []) {
+      const ext = Object.fromEntries((p.extendedData || []).map((e) => [e.name, e.value]));
+      out.push({ id: p.productId, n: p.name, s: g.name, num: ext.Number || null, r: ext.Rarity || null, p: price[p.productId] ?? null, u: p.url || null });
+    }
+  }
+  const doc = { at: Date.now(), game: 'Riftbound', products: out };
+  await env.DATA.put('catalog:riftbound', JSON.stringify(doc));
+  return doc;
 }
 
 async function tcgPrice(id) {
@@ -70,6 +95,15 @@ export default {
       const line = LINES[(url.searchParams.get('line') || '').toLowerCase()] || null;
       try {
         return json({ results: await tcgSearch(q, line) }, 200, cors);
+      } catch (e) {
+        return json({ error: String(e) }, 502, cors);
+      }
+    }
+
+    if (url.pathname === '/catalog/riftbound' && req.method === 'GET') {
+      try {
+        const c = await riftboundCatalog(env);
+        return new Response(JSON.stringify(c), { headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=3600' } });
       } catch (e) {
         return json({ error: String(e) }, 502, cors);
       }

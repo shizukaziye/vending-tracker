@@ -111,6 +111,27 @@ th.num{text-align:right}
 .card .lots{position:absolute;top:18px;right:18px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(13,16,23,.85);border:1px solid var(--border);color:var(--dim)}
 .card .flag{right:auto;left:18px;top:42px}
 .lott td{font-size:13px}
+.addwrap{position:relative;flex:1;min-width:260px;max-width:520px}
+.addwrap input{width:100%;padding-left:34px}
+.addwrap:before{content:"+";position:absolute;left:11px;top:5px;font-size:18px;color:var(--accent);font-weight:700}
+#addmenu{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:55;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);max-height:440px;overflow:auto;display:none}
+#addmenu .hd{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);padding:6px 10px 2px}
+#addmenu .opt{display:flex;gap:10px;align-items:center;padding:6px 10px;cursor:pointer;border-bottom:1px solid #1d2230}
+#addmenu .opt:last-child{border-bottom:none}
+#addmenu .opt:hover,#addmenu .opt.sel{background:#123145}
+#addmenu .opt img{width:42px;height:58px;object-fit:contain;background:#0b0e14;border-radius:5px;flex:none}
+#addmenu .opt .nm{font-weight:600;font-size:14px}
+#addmenu .opt .sb{font-size:12px;color:var(--dim)}
+#addmenu .opt .pr{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+#addmenu .none{padding:12px;color:var(--dim);font-size:13px}
+.recent{background:#12151c;border:1px solid #1d5f8a;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+.recent .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px dashed #232838}
+.recent .row2:last-child{border-bottom:none}
+.recent img{width:38px;height:52px;object-fit:contain;background:#0b0e14;border-radius:5px}
+.recent .nm{font-weight:600;min-width:180px;flex:1}
+.recent label{margin:0;display:flex;flex-direction:column;gap:2px}
+.recent input{width:auto;padding:4px 7px;font-size:13px}
+.recent .qty{width:56px} .recent .cost{width:88px} .recent .cond{width:64px} .recent .loc{width:120px} .recent .src{width:120px} .recent .pay{width:110px}
 .menu{position:fixed;z-index:60;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.5);min-width:170px}
 .menu button{display:block;width:100%;text-align:left;background:transparent;border-color:transparent;padding:7px 10px;border-radius:6px}
 .menu button:hover{background:var(--panel2);border-color:transparent}
@@ -213,10 +234,11 @@ footer .note{font-size:12px;color:var(--dim)}
       </select>
       <label class="chk"><input type="checkbox" id="hideGone" checked onchange="renderAll()">hide sold out</label>
       <button class="small" id="facetToggle" onclick="document.getElementById('facets').classList.toggle('open')" style="display:none">Filters</button>
-      <div class="spacer"></div>
+      <div class="addwrap"><input id="addq" placeholder="Add: type a card or product… (e.g. ahri)" autocomplete="off"><div id="addmenu"></div></div>
       <span class="sub" id="count"></span>
-      <button class="primary" onclick="openForm()">+ Add product</button>
+      <button class="small ghost" onclick="openForm()" title="Add something by hand">manual</button>
     </div>
+    <div class="recent" id="recent" style="display:none"></div>
 
     <div id="formpanel" class="panel" style="display:none">
       <h3 id="formtitle" style="margin-top:0">Add product</h3>
@@ -583,6 +605,7 @@ function renderAll() {
   $('facetToggle').style.display = window.innerWidth <= 700 ? '' : 'none';
   refreshDatalists();
   renderOverview();
+  renderRecent();
   renderFacets();
   if (state.view === 'grid') renderGrid();
   if (state.view === 'list') renderList();
@@ -1135,6 +1158,139 @@ async function refreshPrices() {
   } catch (e) { alert('Price refresh failed: ' + e.message); }
   btn.disabled = false; btn.textContent = '↻ Prices';
 }
+
+// ---------- type-ahead add ----------
+let CATALOG = null, catalogLoading = null, addSel = -1, addOpts = [], addTimer = null, liveSeq = 0;
+const imgOverrides = () => (DOC.settings && DOC.settings.imageOverrides) || {};
+const imgOf = pid => imgOverrides()[pid] || `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_200w.jpg`;
+async function loadCatalog() {
+  if (CATALOG) return CATALOG;
+  if (!catalogLoading) catalogLoading = apiFetch('GET', null, '/catalog/riftbound').then(r => r.ok ? r.json() : null).then(c => {
+    CATALOG = (c && c.products || []).map(p => ({...p, key: (p.n + ' ' + (p.s || '') + ' ' + (p.num || '')).toLowerCase()}));
+    return CATALOG;
+  }).catch(() => (CATALOG = []));
+  return catalogLoading;
+}
+const norm = t => t.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const ABBR = {sig: 'signature', signed: 'signature', alt: 'alternate', showcase: 'alternate', on: 'overnumbered', over: 'overnumbered', promo: 'promo', nn: 'promo', sfd: 'spiritforged', unl: 'unleashed', ven: 'vendetta', ogn: 'origins', ogs: 'proving'};
+function searchCatalog(q) {
+  const toks = norm(q).split(' ').filter(Boolean).map(t => ABBR[t] || t);
+  if (!toks.length || !CATALOG) return [];
+  const out = [];
+  for (const p of CATALOG) {
+    const nm = norm(p.n), hay = nm + ' ' + norm(p.s || '') + ' ' + norm(p.num || '') + ' ' + norm(p.r || '');
+    let score = 0;
+    for (const t of toks) { if (!hay.includes(t)) { score = -1; break; } score += nm.startsWith(t) ? 3 : nm.includes(t) ? 2 : 1; }
+    if (score < 0) continue;
+    if (nm === toks.join(' ')) score += 5;
+    out.push({p, score});
+  }
+  return out.sort((a, b) => b.score - a.score || (b.p.p ?? -1) - (a.p.p ?? -1)).slice(0, 14).map(x => x.p);
+}
+function catalogKind(p) {
+  const suf = ((p.n || '').match(/\(([^()]*)\)\s*$/) || [])[1] || '';
+  if (/^signature$/i.test(suf)) return 'Signature'; if (/^overnumbered$/i.test(suf)) return 'Overnumbered';
+  if (/^alternate art$/i.test(suf) || /^r\d\da$/i.test(suf)) return 'Showcase'; if (/^r\d\d[bc]$/i.test(suf) || /promo/i.test(p.r || '')) return 'Promo';
+  return p.r || '';
+}
+function renderAddMenu(catalogHits, liveHits, q) {
+  const menu = $('addmenu');
+  addOpts = [...catalogHits.map(p => ({kind: 'catalog', p})), ...liveHits.map(r => ({kind: 'live', r}))];
+  if (!addOpts.length) { menu.innerHTML = q.length < 2 ? '' : `<div class="none">${CATALOG ? 'No match yet — keep typing, or add it by hand.' : 'Loading catalog…'}</div>`; menu.style.display = menu.innerHTML ? 'block' : 'none'; return; }
+  let h = '';
+  if (catalogHits.length) h += `<div class="hd">Riftbound</div>` + catalogHits.map((p, i) => `<div class="opt ${i === addSel ? 'sel' : ''}" data-i="${i}"><img src="${esc(imgOf(p.id))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div><div class="nm">${esc(p.n)}</div><div class="sb">${esc(p.s || '')}${p.num ? ' · #' + esc(p.num) : ''}${catalogKind(p) ? ' · ' + esc(catalogKind(p)) : ''}</div></div><div class="pr">${p.p != null ? money(p.p) : '<span class="dim">—</span>'}</div></div>`).join('');
+  if (liveHits.length) h += `<div class="hd">TCGplayer</div>` + liveHits.map((r, j) => { const i = catalogHits.length + j; return `<div class="opt ${i === addSel ? 'sel' : ''}" data-i="${i}"><img src="https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div><div class="nm">${esc(r.productName)}</div><div class="sb">${esc(r.setName || '')} · ${esc(r.productLine || '')}</div></div><div class="pr">${r.marketPrice != null ? money(r.marketPrice) : '<span class="dim">—</span>'}</div></div>`; }).join('');
+  menu.innerHTML = h; menu.style.display = 'block';
+  const sel = menu.querySelector('.opt.sel'); if (sel) sel.scrollIntoView({block: 'nearest'});
+}
+let lastCatalogHits = [], lastLiveHits = [];
+async function onAddInput() {
+  const q = $('addq').value.trim();
+  addSel = 0;
+  if (q.length < 2) { $('addmenu').style.display = 'none'; return; }
+  await loadCatalog();
+  lastCatalogHits = searchCatalog(q); lastLiveHits = [];
+  renderAddMenu(lastCatalogHits, lastLiveHits, q);
+  clearTimeout(addTimer);
+  addTimer = setTimeout(async () => {
+    const seq = ++liveSeq;
+    try {
+      const res = await apiFetch('GET', null, `/market/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok || seq !== liveSeq) return;
+      const j = await res.json();
+      const seen = new Set(lastCatalogHits.map(p => p.id));
+      lastLiveHits = (j.results || []).filter(r => !seen.has(r.productId) && !/riftbound/i.test(r.productLine || '')).slice(0, 8);
+      if ($('addq').value.trim() === q) renderAddMenu(lastCatalogHits, lastLiveHits, q);
+    } catch {}
+  }, 350);
+}
+function guessCategory(name) {
+  const n = name.toLowerCase();
+  for (const [re_, c] of [[/booster box|display/, 'Booster Box'], [/elite trainer|\betb\b/, 'Elite Trainer Box'], [/bundle/, 'Booster Bundle'], [/blister|3[- ]pack|sleeved booster/, 'Blister / 3-pack'], [/booster pack|single pack/, 'Single Pack'], [/\btin\b/, 'Tin'], [/collection|box set|premium|ultra/, 'Collection Box'], [/\bdeck\b/, 'Deck'], [/\bcase\b/, 'Case']]) if (re_.test(n)) return c;
+  return 'Single Card';
+}
+function pickAdd(i) {
+  const o = addOpts[i]; if (!o) return;
+  let m, game, product, category;
+  if (o.kind === 'catalog') {
+    const p = o.p; game = 'Riftbound'; product = p.n; category = p.num ? 'Single Card' : guessCategory(p.n);
+    m = {source: 'tcgplayer', productId: p.id, productName: p.n, setName: p.s, number: p.num, rarity: p.r, url: p.u, image: imgOf(p.id), price: p.p, lowest: null, updatedAt: new Date().toISOString(), auto: false, via: 'typeahead'};
+  } else {
+    const r = o.r, line = (r.productLine || '').toLowerCase();
+    game = line.includes('pokemon') ? 'Pokemon' : line.includes('one piece') ? 'One Piece' : line.includes('riftbound') ? 'Riftbound' : 'Other';
+    product = r.productName; category = guessCategory(r.productName);
+    m = {source: 'tcgplayer', productId: r.productId, productName: r.productName, setName: r.setName, url: r.url, image: `https://tcgplayer-cdn.tcgplayer.com/product/${r.productId}_200w.jpg`, price: r.marketPrice, lowest: r.lowestPrice, updatedAt: new Date().toISOString(), auto: false, via: 'typeahead'};
+  }
+  let loc = ''; try { loc = localStorage.getItem('vt_lastloc') || ''; } catch {}
+  const it = {id: uid(), book: BOOK, moves: [], createdAt: new Date().toISOString(), game, product, category, qty: 1, unitCost: m.price != null ? +(+m.price).toFixed(2) : 0,
+    purchaseDate: today(), payment: '', source: '', location: loc, tags: [], notes: '', attrs: category === 'Single Card' ? {condition: 'NM', language: 'English'} : {type: 'sealed'}, market: m};
+  DOC.items.push(it);
+  if (m.price != null) recordPrice(m.productId, m.price);
+  RECENT.unshift(it.id); RECENT.splice(4);
+  $('addq').value = ''; $('addmenu').style.display = 'none'; addOpts = [];
+  markDirty();
+  setTimeout(() => { const c = document.querySelector(`#recent [data-rid="${it.id}"] .cost`); if (c) { c.focus(); c.select(); } }, 50);
+}
+let RECENT = [];
+function renderRecent() {
+  const box = $('recent');
+  const items = RECENT.map(id => DOC.items.find(x => x.id === id)).filter(Boolean);
+  if (!items.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  box.innerHTML = `<div class="sub" style="margin-bottom:4px">Just added — adjust quantity, cost and where it is; changes save as you type</div>` + items.map(it => `<div class="row2" data-rid="${it.id}">
+    ${imgFor(it) ? `<img src="${esc(imgFor(it))}" alt="" onerror="this.style.visibility='hidden'">` : ''}<div class="nm">${esc(displayName(it))}<div class="sub">${esc(it.market?.setName || it.category || '')}${it.market?.price != null ? ' · market ' + money(it.market.price) : ''}</div></div>
+    <label>Qty<input class="qty" type="number" min="1" step="1" value="${it.qty}" data-f="qty"></label>
+    <label>Cost/ea<input class="cost" type="number" min="0" step="0.01" value="${it.unitCost}" data-f="unitCost"></label>
+    ${it.category === 'Single Card' ? `<label>Cond.<input class="cond" list="dl_condition" value="${esc(it.attrs?.condition || '')}" data-f="condition"></label>` : ''}
+    <label>Location<input class="loc" list="dl_location" value="${esc(it.location || '')}" data-f="location"></label>
+    <label>From<input class="src" list="dl_source" value="${esc(it.source || '')}" data-f="source"></label>
+    <label>Paid by<input class="pay" list="dl_payment" value="${esc(it.payment || '')}" data-f="payment"></label>
+    <button class="small" onclick="doneRecent('${it.id}')">Done</button><button class="small danger" onclick="undoRecent('${it.id}')">Undo</button></div>`).join('');
+}
+function doneRecent(id) { RECENT = RECENT.filter(x => x !== id); renderRecent(); }
+function undoRecent(id) { DOC.items = DOC.items.filter(x => x.id !== id); RECENT = RECENT.filter(x => x !== id); markDirty(); }
+$('recent').addEventListener('input', e => {
+  const row = e.target.closest('[data-rid]'), f = e.target.dataset.f; if (!row || !f) return;
+  const it = DOC.items.find(x => x.id === row.dataset.rid); if (!it) return;
+  const v = e.target.value;
+  if (f === 'qty') { const n = Math.max(1, Math.floor(+v || 1)); if (n >= movedQty(it)) it.qty = n; }
+  else if (f === 'unitCost') it.unitCost = Math.max(0, +v || 0);
+  else if (f === 'condition') { it.attrs ||= {}; it.attrs.condition = v.trim(); }
+  else { it[f] = v.trim(); if (f === 'location') { try { localStorage.setItem('vt_lastloc', v.trim()); } catch {} } }
+  dirty = true; setChip('busy', 'saving…'); clearTimeout(saveTimer); saveTimer = setTimeout(pushNow, 700);
+  renderOverview(); if (state.view === 'grid') renderGrid(); if (state.view === 'list') renderList();
+});
+$('addq').addEventListener('input', onAddInput);
+$('addq').addEventListener('focus', () => { loadCatalog(); if ($('addq').value.trim().length >= 2) onAddInput(); });
+$('addq').addEventListener('keydown', e => {
+  if ($('addmenu').style.display !== 'block') return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); addSel = Math.min(addOpts.length - 1, addSel + 1); renderAddMenu(lastCatalogHits, lastLiveHits, $('addq').value.trim()); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); addSel = Math.max(0, addSel - 1); renderAddMenu(lastCatalogHits, lastLiveHits, $('addq').value.trim()); }
+  else if (e.key === 'Enter') { e.preventDefault(); pickAdd(addSel < 0 ? 0 : addSel); }
+  else if (e.key === 'Escape') { $('addmenu').style.display = 'none'; }
+});
+$('addmenu').addEventListener('mousedown', e => { const o = e.target.closest('.opt'); if (o) { e.preventDefault(); pickAdd(+o.dataset.i); } });
+document.addEventListener('click', e => { if (!e.target.closest('.addwrap')) $('addmenu').style.display = 'none'; });
 
 // ---------- backup ----------
 function exportJSON() { const blob = new Blob([JSON.stringify(DOC, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vending-tracker-${today()}.json`; a.click(); URL.revokeObjectURL(a.href); }
