@@ -32,7 +32,7 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     signature), condition, finish, language, source, location, who paid, market-price state, and
     your own tags. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
   - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, day and week change,
-    cost basis, total spent, realized profit, return on spend, units in transit. The **Overview**
+    cost basis, total spent, realized profit, return on spend, value in transit. The **Overview**
     tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
     source, who paid, condition, spend by month, sales and trades by month, and channel. It follows
     the active filters, so you can get an overview of one set or one game.
@@ -68,7 +68,11 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     An opening row measures the contents (at the valuation share) against the boxes' cost (Net
     profit) and against the sealed boxes' value (Txn P&L); both are stamped on the record when
     you open. Openings have their own "Opening P&L to date" tile since that gain is still in stock.
-    Filter by type and month; the search box applies too.
+    Filter by type and month; the search box applies too. "Day totals" (on by default) puts a
+    subtotal row above each day: what happened, units, out, in, net profit, Txn P&L, opening P&L.
+  - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per
+    location, with a row per in-transit destination and an all-in-transit total) and "P&L by day"
+    (every action per day with out, in, net profit, Txn P&L and opening P&L).
   - **Stats** per book: value at the set share of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
 - **API** (`worker/`): a Cloudflare Worker that stores one JSON document in KV behind a

@@ -182,6 +182,7 @@ kbd{background:var(--panel2);border:1px solid var(--border);border-radius:5px;pa
 .tile .l{font-size:12px;color:var(--dim);margin-top:2px}
 .subh{font-size:13px;font-weight:700;color:var(--accent);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em}
 .subh:first-child{margin-top:0}
+.dayrow td{background:var(--panel2);font-weight:700;border-top:2px solid var(--border)} .dayrow td .sub{font-weight:400}
 .bar{height:6px;background:#123145;border-radius:3px;overflow:hidden;margin-top:3px}
 .bar i{display:block;height:100%;background:var(--accent)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -334,7 +335,7 @@ footer .note{font-size:12px;color:var(--dim)}
         <div id="view_list" class="panel" style="display:none"><div class="tblwrap" id="invtbl"></div></div>
         <div id="view_sold" class="panel" style="display:none"><div class="tblwrap" id="soldtbl"></div></div>
         <div id="view_traded" class="panel" style="display:none"><div class="tblwrap" id="tradedtbl"></div></div>
-        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option><option value="gift">Gifts</option><option value="open">Opened</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label></div><div class="tblwrap" id="txntbl"></div></div></div>
+        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option><option value="gift">Gifts</option><option value="open">Opened</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label><label class="chk"><input type="checkbox" id="txn_byday" checked onchange="renderAll()">day totals</label></div><div class="tblwrap" id="txntbl"></div></div></div>
         <div id="view_stats" style="display:none"></div>
       </div>
     </div>
@@ -744,7 +745,7 @@ function refreshDatalists() {
 
 // ---------- overview strip ----------
 function bookTotals(items) {
-  let units = 0, cost = 0, value = 0, valueMkt = 0, unpricedCost = 0, spent = 0, day = 0, week = 0, incomingCost = 0, incomingUnits = 0;
+  let units = 0, cost = 0, value = 0, valueMkt = 0, unpricedCost = 0, spent = 0, day = 0, week = 0, incomingCost = 0, incomingUnits = 0, incomingValue = 0;
   let revenue = 0, costSold = 0, fees = 0, tradeVal = 0, tradeCost = 0, sales = 0, trades = 0, products = 0;
   for (const it of items) {
     const rem = onHand(it), uc = it.unitCost || 0, mp = marketPrice(it), uv = unitValue(it);
@@ -752,7 +753,7 @@ function bookTotals(items) {
     if (uv == null) unpricedCost += rem * uc; else { value += rem * uv; valueMkt += rem * (mp ?? uv); }
     const c1 = changeFor(it, 1), c7 = changeFor(it, 7);
     if (c1) day += rem * c1.abs; if (c7) week += rem * c7.abs;
-    if (statusOf(it) === 'Incoming') { incomingCost += rem * uc; incomingUnits += rem; }
+    if (statusOf(it) === 'Incoming') { incomingCost += rem * uc; incomingUnits += rem; incomingValue += rem * (uv ?? 0); }
     for (const m of (it.moves || [])) {
       const c = moveCost(it, m);
       if (m.type === 'opened') continue;
@@ -761,7 +762,7 @@ function bookTotals(items) {
     }
   }
   const saleProfit = revenue - costSold - fees, tradeGain = tradeVal - tradeCost;
-  return {units, cost, value, valueMkt, unpricedCost, spent, day, week, incomingCost, incomingUnits, revenue, costSold, fees, tradeVal, tradeCost, sales, trades, products,
+  return {units, cost, value, valueMkt, unpricedCost, spent, day, week, incomingCost, incomingUnits, incomingValue, revenue, costSold, fees, tradeVal, tradeCost, sales, trades, products,
     saleProfit, tradeGain, realized: saleProfit + tradeGain, unreal: value - (cost - unpricedCost)};
 }
 const sgn = n => `<span class="${n > 0.005 ? 'good' : n < -0.005 ? 'bad' : 'dim'}">${n >= 0 ? '+' : ''}${money(n)}</span>`;
@@ -776,7 +777,7 @@ function renderOverview() {
     [money(t.spent), 'Total spent', 'all time, this book'],
     [sgn(t.realized), 'Realized profit', `sales ${money0(t.saleProfit)} · trades ${money0(t.tradeGain)}`],
     [t.spent ? pct((t.realized + t.unreal) / t.spent * 100) : '—', 'Return on spend', 'realized + unrealized'],
-    [`${t.incomingUnits}`, 'Units in transit', money(t.incomingCost) + ' cost'],
+    [money(t.incomingValue), `In transit @${valuePct()}%`, `${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
   ];
   $('overview').innerHTML = tiles.map(([v, l, s]) => `<div class="t"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('');
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
@@ -1112,7 +1113,13 @@ function renderTxn() {
   let h = `<table><tr><th>Date</th><th>Type</th><th>With</th><th>What</th><th class="num">Units</th><th class="num">Out</th><th class="num">In</th><th class="num" title="received minus what the units cost">Net profit</th><th class="num" title="received minus what the units were worth at the valuation share when they left">Txn P&amp;L</th><th class="hidemob">Paid by</th></tr>`;
   let tOut = 0, tIn = 0, tP = 0, tPnl = 0;
   const COLORS = {purchase: '#66c7ff', sale: '#6ee7a8', trade: '#c78cff', transfer: '#97a0b4', gift: '#f5a3c7', open: '#ffd166'};
+  const byDay = $('txn_byday').checked, days = byDay ? new Map(dayGroups(rows).map(d => [d.date, d])) : null;
+  let curDay = null;
   for (const r of rows) {
+    if (byDay && (r.date || '—') !== curDay) {
+      curDay = r.date || '—'; const d = days.get(curDay);
+      h += `<tr class="dayrow"><td>${esc(curDay)}</td><td colspan="3"><span class="sub">${esc(typesText(d.types))}${d.open ? ` · opening P&amp;L <span class="${d.open >= 0 ? 'good' : 'bad'}">${sgn(d.open)}</span>` : ''}</span></td><td class="num">${d.units}</td><td class="num">${d.out ? money(d.out) : ''}</td><td class="num">${d.inn ? money(d.inn) : ''}</td><td class="num ${d.net >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? money(d.net) : ''}</td><td class="num ${d.pnl >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? money(d.pnl) : ''}</td><td class="hidemob"></td></tr>`;
+    }
     tOut += r.out || 0; tIn += r.inn || 0; tP += r.profit || 0; tPnl += r.pnl || 0;
     const what = r.type === 'purchase'
       ? `${esc(r.ref && r.vendor && r.ref.startsWith(r.vendor) ? r.ref : (r.vendor ? r.vendor + (r.ref ? ' · ' + r.ref : '') : r.ref || ''))}${r.lots.length > 1 ? `<div class="sub">${r.lots.length} lines · ${r.lots.slice(0, 3).map(displayName).map(esc).join(', ')}${r.lots.length > 3 ? ` +${r.lots.length - 3}` : ''}</div>` : `<div class="sub">${esc(displayName(r.lots[0]))}</div>`}${r.currency && r.currency !== 'USD' && r.total != null ? `<div class="sub">${(+r.total).toFixed(2)} ${esc(r.currency)}</div>` : ''}`
@@ -1189,6 +1196,42 @@ function valueChart(items) {
     <text x="10" y="12" fill="#97a0b4" font-size="11">${money0(hi)}</text><text x="10" y="${ht - 14}" fill="#97a0b4" font-size="11">${money0(lo)}</text></svg>
     <div class="cap"><span>${esc(days[0])}</span><span>${esc(days[days.length - 1])} · ${money(ys[ys.length - 1])}</span></div></div>`;
 }
+function whereTable(items) {
+  const g = {};
+  for (const it of items) {
+    const rem = onHand(it); if (rem <= 0) continue;
+    const uc = it.unitCost || 0, uv = unitValue(it), transit = statusOf(it) === 'Incoming', k = (transit ? 'In transit → ' : '') + (it.location || '—');
+    const G = g[k] ||= {transit, units: 0, cost: 0, value: 0, unpriced: 0, products: 0};
+    G.units += rem; G.cost += rem * uc; G.products++; if (uv == null) G.unpriced += rem * uc; else G.value += rem * uv;
+  }
+  const rows = Object.entries(g).sort((a, b) => (a[1].transit - b[1].transit) || (b[1].value + b[1].unpriced) - (a[1].value + a[1].unpriced));
+  if (!rows.length) return '<div class="empty">Nothing on hand.</div>';
+  const add = (a, v) => ({units: a.units + v.units, cost: a.cost + v.cost, value: a.value + v.value, unpriced: a.unpriced + v.unpriced, products: a.products + v.products});
+  const zero = {units: 0, cost: 0, value: 0, unpriced: 0, products: 0};
+  const tot = rows.reduce((a, [, v]) => add(a, v), zero), tr = rows.filter(([, v]) => v.transit).reduce((a, [, v]) => add(a, v), zero);
+  const line = (k, v, cls) => { const gain = v.value - (v.cost - v.unpriced); return `<tr class="${cls || ''}"><td>${esc(k)}<span class="sub"> · ${v.products} product${v.products !== 1 ? 's' : ''}</span></td><td class="num">${v.units}</td><td class="num">${money(v.cost)}</td><td class="num">${money(v.value)}${v.unpriced ? ` <span class="dim">+${money0(v.unpriced)}?</span>` : ''}</td><td class="num ${gain >= 0 ? 'good' : 'bad'}">${sgn(gain)}</td></tr>`; };
+  return `<table><tr><th>Where</th><th class="num">Units</th><th class="num">Cost</th><th class="num">Value @${valuePct()}%</th><th class="num">Gain</th></tr>` +
+    rows.map(([k, v]) => line(k, v)).join('') + (tr.units ? line('All in transit', tr, 'dayrow') : '') + line('Everything', tot, 'dayrow') + '</table>';
+}
+function dayGroups(rows) {  // ledger rows → one summary per date, newest first
+  const g = new Map();
+  for (const r of rows) {
+    const G = g.get(r.date || '—') || {date: r.date || '—', n: 0, units: 0, types: {}, out: 0, inn: 0, net: 0, pnl: 0, open: 0, upcoming: r.upcoming};
+    G.n++; G.units += r.units || 0; G.types[r.type] = (G.types[r.type] || 0) + 1;
+    if (r.type === 'purchase') G.out += r.out || 0;
+    if (r.type === 'sale' || r.type === 'trade') G.inn += r.inn || 0;
+    if (r.type === 'open') G.open += r.pnl || 0; else if (r.pnl != null) { G.net += r.profit || 0; G.pnl += r.pnl || 0; }
+    g.set(G.date, G);
+  }
+  return [...g.values()].sort((a, b) => b.date.localeCompare(a.date));
+}
+const typesText = t => Object.entries(t).map(([k, n]) => `${n} ${(TXN_LABEL[k] || k).toLowerCase()}${n !== 1 && k !== 'open' ? 's' : ''}`).join(' · ');
+function dayTable() {
+  const days = dayGroups(buildTxns().filter(r => !r.upcoming));
+  if (!days.length) return '<div class="empty">No transactions yet.</div>';
+  return `<table><tr><th>Day</th><th class="num">Out</th><th class="num">In</th><th class="num">Net profit</th><th class="num">Txn P&amp;L</th><th class="num hidemob">Opening P&amp;L</th></tr>` +
+    days.slice(0, 120).map(d => `<tr><td>${esc(d.date)}<div class="sub">${esc(typesText(d.types))}</div></td><td class="num">${d.out ? money(d.out) : ''}</td><td class="num">${d.inn ? money(d.inn) : ''}</td><td class="num ${d.net >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? sgn(d.net) : ''}</td><td class="num ${d.pnl >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? sgn(d.pnl) : ''}</td><td class="num hidemob ${d.open >= 0 ? 'good' : 'bad'}">${d.open ? sgn(d.open) : ''}</td></tr>`).join('') + '</table>';
+}
 function renderStats() {
   const q = $('q').value.trim().toLowerCase(), filtered = Object.keys(state.f).length > 0 || q;
   const items = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))), t = bookTotals(items);
@@ -1201,7 +1244,7 @@ function renderStats() {
     [money(t.spent), 'Total spent (all time)'], [money(t.revenue), 'Sales revenue'], [money(t.fees), 'Fees paid'],
     [sgn(t.saleProfit), `Profit on sales (${t.sales} units)`], [sgn(t.tradeGain), `Gain on trades (${t.trades} units)`],
     [sgn(t.realized), 'Realized profit'], [t.spent ? pct((t.realized + t.unreal) / t.spent * 100) : '—', 'Return on spend (realized + unrealized)'],
-    [`${t.units}`, `Units on hand · ${t.products} products`], [`${t.incomingUnits}`, `Units in transit · ${money(t.incomingCost)}`],
+    [`${t.units}`, `Units on hand · ${t.products} products`], [money(t.incomingValue), `In transit @${valuePct()}% · ${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
     [money(t.unpricedCost), 'Cost of unpriced stock'], [`${items.filter(i => i.market?.auto && onHand(i) > 0).length}`, 'Products needing a price review'],
   ];
   const withVal = items.filter(i => onHand(i) > 0 && unitValue(i) != null);
@@ -1210,6 +1253,10 @@ function renderStats() {
   const fx = it => facetsOf(it);
   $('view_stats').innerHTML = `
     <div class="tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+    <div class="two">
+      <div class="panel"><div class="subh">Where the value is</div>${whereTable(items)}</div>
+      <div class="panel"><div class="subh">P&amp;L by day</div><div class="sub" style="margin:-4px 0 8px">Every action that day, this book. Net profit is against cost, Txn P&amp;L against value at ${valuePct()}%; openings kept apart.</div>${dayTable()}</div>
+    </div>
     ${valueChart(items)}
     <div class="two">
       <div class="panel"><div class="subh">Top holdings</div><table><tr><th>Product</th><th class="num">Qty</th><th class="num">Market</th><th class="num">Value @${valuePct()}%</th></tr>${top.map(i => `<tr><td>${esc(displayName(i))}<div class="sub">${esc(i.market?.setName || i.category || '')}</div></td><td class="num">${onHand(i)}</td><td class="num">${money(marketPrice(i))}</td><td class="num">${money(onHand(i) * unitValue(i))}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nothing priced yet.</td></tr>'}</table></div>
