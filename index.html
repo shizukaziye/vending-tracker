@@ -805,7 +805,7 @@ function renderOverview() {
     [sgn(sp.Other.now), 'Other P&L', `everything else · ${sp.Other.n} rows`],
   ];
   const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit', 'Target', 'Cardmarket', 'Other'];
-  $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('') + regionBar();
+  $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('') + gameBar() + regionBar();
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
 }
 
@@ -829,6 +829,15 @@ function regionBar() {
   const active = state.f.region;
   return `<div class="regbar"><button class="${!active ? 'on' : ''}" onclick="setRegion(null)">All regions</button>` + names.map(r => { const G = g[r] || {on: 0, transit: 0}; return `<button class="${active?.has(r) ? 'on' : ''}" onclick="setRegion(${jsArg(r)})"><b>${esc(r)}</b> ${money0(G.on)}${G.transit ? ` <span class="dim">+ ${money0(G.transit)} in transit</span>` : ''}</button>`; }).join('') + '</div>';
 }
+// game buttons: one per game in this book, value on hand, click to filter the whole page by it
+function gameBar() {
+  const q = $('q').value.trim().toLowerCase(), base = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it), 'game') && onHand(it) > 0);
+  const g = {}; for (const it of base) { const k = it.game || 'Other'; g[k] = (g[k] || 0) + onHand(it) * (unitValue(it) || 0); }
+  const names = Object.keys(g).sort((a, b) => g[b] - g[a]); if (!names.length) return '';
+  const active = state.f.game;
+  return `<div class="regbar"><button class="${!active ? 'on' : ''}" onclick="setGame(null)">All games</button>` + names.map(k => `<button class="${active?.has(k) ? 'on' : ''}" onclick="setGame(${jsArg(k)})"><b>${esc(k)}</b> ${money0(g[k])}</button>`).join('') + '</div>';
+}
+function setGame(g) { if (!g || state.f.game?.has(g)) delete state.f.game; else state.f.game = new Set([g]); renderAll(); }
 function setRegion(r) { if (!r || state.f.region?.has(r)) delete state.f.region; else state.f.region = new Set([r]); renderAll(); }
 
 // ---------- "show the math" behind each overview tile ----------

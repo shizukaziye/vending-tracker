@@ -34,8 +34,8 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     Home are North Carolina; Bubububu and Symph are California; Cardmarket is Poland (the
     `REGIONS` table in the page). Combine it with Status to split delivered from in transit. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
   - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, 30-day change,
-    cost basis on hand, total spent, value in transit, then one button per region (value on hand and
-    in transit) that filters the whole page. Three P&L tiles split the gain by source: **Target** and
+    cost basis on hand, total spent, value in transit, then one button per game and one per region
+    (value on hand, plus in transit for regions) that filter the whole page. Three P&L tiles split the gain by source: **Target** and
     **Cardmarket** are their purchases only (worth at the valuation share now minus paid, with the
     bought-day figure under it); **Other** is every remaining row: purchases from other sources,
     sales, gifts, transfers and trades at their Txn P&L, and openings. The three add up to purchase
