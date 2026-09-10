@@ -44,8 +44,7 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     valuation price and creates the twin item in the personal book at that cost. "→ Biz"
     does the reverse.
   - **Sell** records units, price, channel and fees. Tick **Gift** for something given away: the
-    price is 0, the loss is what it was worth when given (market × the valuation share, stored
-    on the record), and the ledger and Sold tab flag it as a gift.
+    price is 0 and the ledger and Sold tab flag it as a gift.
     **Open** (menu, sealed products only) breaks units into what came out: you list the contents
     with quantities per unit and market prices, the opened units leave stock, and each line
     becomes a new lot at the same location. The cost of the opened units is split across the
@@ -61,8 +60,12 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     order (each Target order, Cardmarket shipment, Bandai order or lot buyout is one row with its
     total, counterparty, lines and who paid); sales, trades and moves to the personal collection
     come from the records on each product, and so do gifts and box openings. Future-dated rows (a buyout paid next week) show as
-    upcoming and stay out of the spent-to-date totals until the date passes. Filter by type and
-    month; the search box applies too.
+    upcoming and stay out of the spent-to-date totals until the date passes. Every row that moves
+    units out carries two measures: **Net profit** (received minus what the units cost) and
+    **Txn P&L** (received minus what they were worth at the valuation share when they left; the
+    valuation is stored on the record as `valueAt`). A gift is a loss of its cost in one and of
+    its value in the other; a move to the collection at the valuation price is a Txn P&L of 0.
+    Filter by type and month; the search box applies too.
   - **Stats** per book: value at the set share of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
 - **API** (`worker/`): a Cloudflare Worker that stores one JSON document in KV behind a
