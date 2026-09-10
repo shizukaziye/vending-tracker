@@ -560,6 +560,7 @@ const movedQty = it => (it.moves || []).reduce((a, m) => a + m.qty, 0);
 const onHand = it => it.qty - movedQty(it);
 const moveCost = (it, m) => m.qty * (it.unitCost || 0);
 const moveValue = (it, m) => m.qty * (m.valueAt != null ? m.valueAt : (unitValue(it) ?? (it.unitCost || 0)));  // worth at the valuation share when it left (today's if not recorded)
+const val2 = v => v == null ? null : +v.toFixed(2);
 const moveIn = m => m.type === 'sold' ? m.qty * m.unitPrice - (m.fee || 0) : (m.value || 0);
 const marketPrice = it => (it.market && it.market.price != null) ? +it.market.price : null;
 const hasOverride = it => it.valueOverride != null && it.valueOverride !== '';
@@ -1069,15 +1070,21 @@ function buildTxns() {
         rows.push({key: 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], units: m.qty, cost, inn: moveIn(m), fee: m.fee || 0, profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), note: m.note});
       } else if (m.type === 'opened') {  // one row per opening, even when it drew from several lots
         const outs = openOutputs(m), gk = 'o:' + (outs[0]?.fromOpenOf?.moveIds?.[0] || m.id);
-        const g = byOpen.get(gk) || {key: gk, date: m.date || '', type: 'open', who: new Set(), box: displayName(it), lots: [], units: 0, cost: 0, outs, note: m.note};
-        g.who.add(it.location || '—'); g.lots.push(it); g.units += m.qty; g.cost += cost; byOpen.set(gk, g);
+        const g = byOpen.get(gk) || {key: gk, date: m.date || '', type: 'open', who: new Set(), box: displayName(it), lots: [], units: 0, cost: 0, val: 0, outVal: 0, stamped: true, outs, note: m.note};
+        g.who.add(it.location || '—'); g.lots.push(it); g.units += m.qty; g.cost += cost; g.val += moveValue(it, m); if (m.outValueAt != null) g.outVal += m.outValueAt; else g.stamped = false; byOpen.set(gk, g);
       } else {
         rows.push({key: 'm:' + m.id, date: m.date || '', type: 'trade', who: m.counterparty || '—', ref: `${displayName(it)}${m.received ? ' → ' + m.received : ''}`, lots: [it], units: m.qty, cost, inn: moveIn(m), profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), note: m.note});
       }
     }
   }
   for (const g of byTxn.values()) { g.out = g.totalUsd != null ? g.totalUsd : g.cost; rows.push(g); }
-  for (const g of byOpen.values()) { g.who = [...g.who].join(' + '); g.ref = `${g.units}× ${g.box}`; g.note = [g.outs.length ? '→ ' + g.outs.map(o => `${o.qty}× ${displayName(o)}`).join(', ') : '', g.note].filter(Boolean).join(' · '); g.lots = [...g.lots, ...g.outs]; rows.push(g); }
+  for (const g of byOpen.values()) {
+    if (!g.stamped) g.outVal = g.outs.reduce((a, o) => a + o.qty * (unitValue(o) ?? 0), 0);  // older openings: contents at today's valuation
+    g.profit = g.outVal - g.cost; g.pnl = g.outVal - g.val;
+    g.who = [...g.who].join(' + '); g.ref = `${g.units}× ${g.box}`;
+    g.note = [g.outs.length ? '→ ' + g.outs.map(o => `${o.qty}× ${displayName(o)}`).join(', ') : '', `contents worth ${money(g.outVal)} vs ${money(g.val)} sealed at ${valuePct()}%${g.stamped ? '' : ' (today\'s prices)'}`, g.note].filter(Boolean).join(' · ');
+    g.lots = [...g.lots, ...g.outs]; rows.push(g);
+  }
   for (const r of rows) r.upcoming = r.date > td;
   return rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.type || '').localeCompare(a.type || ''));
 }
@@ -1096,7 +1103,8 @@ function renderTxn() {
   const tiles = [
     [money(out(mrows)), `Spent in ${tm}`], [money(inn(mrows)), `Received in ${tm}`], [sgn(inn(mrows) - out(mrows)), `Net cash in ${tm}`],
     [money(out(past)), 'Spent to date'], [money(inn(past)), 'Received to date'], [sgn(inn(past) - out(past)), 'Net cash to date'],
-    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.pnl != null), r => r.profit)), 'Net profit to date', 'received minus cost'], [sgn(sum(past.filter(r => r.pnl != null), r => r.pnl)), 'Txn P&L to date', `received minus value at ${valuePct()}%`],
+    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.pnl != null && r.type !== 'open'), r => r.profit)), 'Net profit to date', 'received minus cost'], [sgn(sum(past.filter(r => r.pnl != null && r.type !== 'open'), r => r.pnl)), 'Txn P&L to date', `received minus value at ${valuePct()}%`],
+    [sgn(sum(past.filter(r => r.type === 'open'), r => r.pnl)), 'Opening P&L to date', `contents vs sealed at ${valuePct()}% · still in stock`],
   ];
   $('txntiles').innerHTML = tiles.map(([v, l, sub]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}${sub ? `<div class="sub">${sub}</div>` : ''}</div></div>`).join('');
   $('count').textContent = `${rows.length} transaction${rows.length !== 1 ? 's' : ''}`;
@@ -1289,7 +1297,7 @@ function submitSale() {
   if (qty < 1 || qty > rem) { alert(`Quantity must be 1–${rem}.`); return; }
   if (!gift && (!(price >= 0) || $('s_price').value === '')) { alert('Enter the sale price per unit.'); return; }
   const fee = gift ? 0 : Math.max(0, +$('s_fee').value || 0), date = $('s_date').value || today(), channel = $('s_channel').value.trim(), note = $('s_note').value.trim();
-  for (const [lot, n] of takeFifo(saleRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, channel, fee: +(fee * n / qty).toFixed(2), note, valueAt: unitValue(lot), ...(gift ? {gift: true} : {})});
+  for (const [lot, n] of takeFifo(saleRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, channel, fee: +(fee * n / qty).toFixed(2), note, valueAt: val2(unitValue(lot)), ...(gift ? {gift: true} : {})});
   $('selldlg').close(); markDirty();
 }
 
@@ -1308,7 +1316,7 @@ function submitTrade() {
   if (!(value >= 0) || $('t_value').value === '') { alert('Enter the value you received.'); return; }
   const date = $('t_date').value || today(), counterparty = $('t_party').value.trim(), received = $('t_received').value.trim(), note = $('t_note').value.trim();
   let first = null, firstLot = null;
-  for (const [lot, n] of takeFifo(tradeRef, qty)) { const mv = {id: uid(), type: 'traded', qty: n, value: +(value * n / qty).toFixed(2), date, counterparty, received, note, valueAt: unitValue(lot)}; (lot.moves ||= []).push(mv); if (!first) { first = mv; firstLot = lot; } }
+  for (const [lot, n] of takeFifo(tradeRef, qty)) { const mv = {id: uid(), type: 'traded', qty: n, value: +(value * n / qty).toFixed(2), date, counterparty, received, note, valueAt: val2(unitValue(lot))}; (lot.moves ||= []).push(mv); if (!first) { first = mv; firstLot = lot; } }
   $('tradedlg').close(); markDirty();
   const it = firstLot;
   if ($('t_add').checked && it) openForm(null, {game: it.game, product: received || '', category: it.category, qty: 1, unitCost: value, purchaseDate: date, payment: 'Trade', source: 'Trade' + (counterparty ? ' with ' + counterparty : ''), location: it.location, tags: ['trade-in'], notes: `Received for ${qty}x ${displayName(it)}`, fromTradeOf: {itemId: it.id, moveId: first.id}});
@@ -1337,7 +1345,7 @@ function submitBookMove() {
     location, tags: (it.tags || []).filter(t => !['incoming', 'delivered', 'target', 'cardmarket', 'bandai'].includes(t)),
     notes: note || `From ${BOOK_NAMES[bookOf(it)]} · ${it.product}`, market: it.market ? {...it.market} : undefined, attrs: {...(it.attrs || {})}, fromItemId: it.id};
   DOC.items.push(twin);
-  for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: note || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id, valueAt: unitValue(lot)});
+  for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: note || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id, valueAt: val2(unitValue(lot))});
   $('movedlg').close(); markDirty();
 }
 
@@ -1393,8 +1401,8 @@ function openInto(it, taken, lines, {date, note, totalCost, extra}) {
   const boxes = taken.reduce((a, [, n]) => a + n, 0);
   const priced = lines.every(l => l.mp != null) && lines.some(l => l.mp > 0);
   const weight = l => priced ? l.mp : 1, denom = lines.reduce((a, l) => a + l.per * weight(l), 0);
-  const moveIds = [];
-  for (const [lot, n] of taken) { const mv = {id: uid(), type: 'opened', qty: n, date, note}; (lot.moves ||= []).push(mv); moveIds.push(mv.id); }
+  const moveIds = [], mvs = [];
+  for (const [lot, n] of taken) { const mv = {id: uid(), type: 'opened', qty: n, date, note, valueAt: val2(unitValue(lot))}; (lot.moves ||= []).push(mv); moveIds.push(mv.id); mvs.push(mv); }
   const out = [];
   for (const l of lines) {
     const unitCost = +((totalCost / boxes) * weight(l) / denom).toFixed(4);
@@ -1404,6 +1412,8 @@ function openInto(it, taken, lines, {date, note, totalCost, extra}) {
     if (l.market) c.market = {...l.market}; else if (l.mp != null) c.market = {source: 'manual', price: l.mp, updatedAt: new Date().toISOString(), auto: false};
     DOC.items.push(c); out.push(c);
   }
+  const outValue = out.reduce((a, c) => a + c.qty * (unitValue(c) ?? 0), 0);  // contents at the valuation share, spread over the lots opened
+  for (const mv of mvs) mv.outValueAt = +(outValue * mv.qty / boxes).toFixed(2);
   return out;
 }
 const openOutputs = mv => DOC.items.filter(x => x.fromOpenOf?.moveIds?.includes(mv.id));

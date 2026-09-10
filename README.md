@@ -65,6 +65,9 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     **Txn P&L** (received minus what they were worth at the valuation share when they left; the
     valuation is stored on the record as `valueAt`). A gift is a loss of its cost in one and of
     its value in the other; a move to the collection at the valuation price is a Txn P&L of 0.
+    An opening row measures the contents (at the valuation share) against the boxes' cost (Net
+    profit) and against the sealed boxes' value (Txn P&L); both are stamped on the record when
+    you open. Openings have their own "Opening P&L to date" tile since that gain is still in stock.
     Filter by type and month; the search box applies too.
   - **Stats** per book: value at the set share of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
