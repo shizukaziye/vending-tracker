@@ -621,6 +621,9 @@ function sourceOf(it) {
   return s || '—';
 }
 function marketState(it) { const m = it.market; if (!m || m.price == null) return 'No price'; if (m.source === 'manual') return 'Manual'; if (m.auto) return 'Needs review'; return 'Matched'; }
+// where things physically are, by shipping address → region. Delivered stock at these addresses (and Home) counts as the region; in-transit stock is on its way there.
+const REGIONS = [[/zerokata|6209 kit creek|^home$/i, 'North Carolina'], [/bubububu|symph/i, 'California'], [/cardmarket/i, 'Poland']];
+function regionOf(it) { const l = it.location || ''; for (const [re, r] of REGIONS) if (re.test(l)) return r; return 'Other'; }
 function statusOf(it) { const rem = onHand(it); if (rem <= 0) return 'Sold out'; const t = it.tags || []; if (t.includes('incoming')) return 'Incoming'; return 'On hand'; }
 function facetsOf(it) {
   const m = it.market || {}, a = it.attrs || {};
@@ -631,7 +634,7 @@ function facetsOf(it) {
     game: it.game || 'Other', type: sealed ? 'Sealed' : 'Single', category: it.category || '—',
     set: m.setName || null, rarity: sealed ? null : (m.rarity || null), printing,
     condition: a.condition || (sealed ? 'Sealed' : null), language: a.language || (sealed ? 'English' : null), finish,
-    status: statusOf(it), source: sourceOf(it), location: it.location || '—', payer: it.payment || '—',
+    status: statusOf(it), source: sourceOf(it), region: regionOf(it), location: it.location || '—', payer: it.payment || '—',
     market: marketState(it), tags: (it.tags || []),
     value: hasOverride(it) ? 'Custom value' : (marketPrice(it) != null ? `Market × ${valuePct()}%` : 'No value'),
   };
@@ -639,7 +642,7 @@ function facetsOf(it) {
 const FACETS = [
   ['status', 'Status'], ['game', 'Game'], ['type', 'Type'], ['category', 'Product'], ['set', 'Set'], ['rarity', 'Rarity'],
   ['printing', 'Printing'], ['condition', 'Condition'], ['finish', 'Finish'], ['language', 'Language'],
-  ['source', 'Source'], ['location', 'Location'], ['payer', 'Paid by'], ['market', 'Market price'], ['value', 'Valuation'], ['tags', 'Tags'],
+  ['source', 'Source'], ['region', 'Region'], ['location', 'Location'], ['payer', 'Paid by'], ['market', 'Market price'], ['value', 'Valuation'], ['tags', 'Tags'],
 ];
 const state = {view: 'grid', f: {}, expanded: new Set(), collapsed: new Set(JSON.parse((() => { try { return localStorage.getItem('vt_fc') || '[]'; } catch { return '[]'; } })())), fq: {}};
 function hasF(key, val) { return !!state.f[key]?.has(val); }
@@ -1200,7 +1203,7 @@ function whereTable(items) {
   const g = {};
   for (const it of items) {
     const rem = onHand(it); if (rem <= 0) continue;
-    const uc = it.unitCost || 0, uv = unitValue(it), transit = statusOf(it) === 'Incoming', k = (transit ? 'In transit → ' : '') + (it.location || '—');
+    const uc = it.unitCost || 0, uv = unitValue(it), transit = statusOf(it) === 'Incoming', k = (transit ? 'In transit → ' : '') + regionOf(it);
     const G = g[k] ||= {transit, units: 0, cost: 0, value: 0, unpriced: 0, products: 0};
     G.units += rem; G.cost += rem * uc; G.products++; if (uv == null) G.unpriced += rem * uc; else G.value += rem * uv;
   }
@@ -1267,7 +1270,7 @@ function renderStats() {
       <div class="panel"><div class="subh">By set</div>${groupTable(items, i => i.market?.setName || (fx(i).type === 'Sealed' ? i.game + ' sealed' : '—'), 'Set')}</div>
     </div>
     <div class="two">
-      <div class="panel"><div class="subh">By location</div>${groupTable(items, i => i.location || '—', 'Location')}<div class="subh">By source</div>${groupTable(items, i => sourceOf(i), 'Source')}</div>
+      <div class="panel"><div class="subh">By region</div>${groupTable(items, i => regionOf(i), 'Region')}<div class="subh">By address</div>${groupTable(items, i => i.location || '—', 'Location')}<div class="subh">By source</div>${groupTable(items, i => sourceOf(i), 'Source')}</div>
       <div class="panel"><div class="subh">By who paid</div>${groupTable(items, i => i.payment || '—', 'Paid by')}<div class="subh">By condition</div>${groupTable(items, i => fx(i).condition || '—', 'Condition')}</div>
     </div>
     <div class="two">

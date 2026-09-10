@@ -29,8 +29,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     from the oldest lot first; setting a market price applies to every lot. List view is the old table; hover a row for details.
   - **Facets** on the left, all derived automatically and combinable: status, game, type (sealed or
     single), product kind, set, rarity, printing (standard, showcase, promo, overnumbered,
-    signature), condition, finish, language, source, location, who paid, market-price state, and
-    your own tags. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
+    signature), condition, finish, language, source, region, location, who paid, market-price
+    state, and your own tags. Region is derived from the location: Zerokata, 6209 Kit Creek and
+    Home are North Carolina; Bubububu and Symph are California; Cardmarket is Poland (the
+    `REGIONS` table in the page). Combine it with Status to split delivered from in transit. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
   - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, day and week change,
     cost basis, total spent, realized profit, return on spend, value in transit. The **Overview**
     tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
@@ -71,7 +73,8 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     Filter by type and month; the search box applies too. "Day totals" (on by default) puts a
     subtotal row above each day: what happened, units, out, in, net profit, Txn P&L, opening P&L.
   - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per
-    location, with a row per in-transit destination and an all-in-transit total) and "P&L by day"
+    region, with a row per in-transit destination region and an all-in-transit total; the
+    address-level table is further down) and "P&L by day"
     (every action per day with out, in, net profit, Txn P&L and opening P&L).
   - **Stats** per book: value at the set share of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
