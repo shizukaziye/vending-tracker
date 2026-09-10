@@ -70,6 +70,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     An opening row measures the contents (at the valuation share) against the boxes' cost (Net
     profit) and against the sealed boxes' value (Txn P&L); both are stamped on the record when
     you open. Openings have their own "Opening P&L to date" tile since that gain is still in stock.
+    A purchase row measures what was bought at the valuation share against what was paid: Net
+    profit at today's prices, Txn P&L at the prices on the purchase date (from the price history;
+    the earliest snapshot when none is older). Purchases get a "Purchase P&L to date" tile, also
+    kept out of the cash tiles.
     Filter by type and month; the search box applies too. "Day totals" (on by default) puts a
     subtotal row above each day: what happened, units, out, in, net profit, Txn P&L, opening P&L.
   - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per

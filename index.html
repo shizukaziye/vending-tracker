@@ -587,6 +587,18 @@ function recordPrice(pid, price, day) {
   if (h.length > 400) h.splice(0, h.length - 400);
 }
 function histFor(it) { const pid = it.market?.productId; return pid && it.market.source === 'tcgplayer' ? (DOC.history[pid] || []) : []; }
+function pidPriceOn(pid, day) {
+  const h = DOC.history[pid] || []; if (!h.length) return null;
+  let best = null; for (const e of h) { if (e[0] <= day) best = e; else break; }
+  return (best || h[0])[1];
+}
+function priceOn(it, day) {  // market price of one unit on that day; a set sums its parts
+  const m = it.market; if (!m || m.source !== 'tcgplayer' || !day) return marketPrice(it);
+  const pids = m.productIds?.length ? m.productIds : [m.productId];
+  let sum = 0; for (const pid of pids) { const p = pidPriceOn(pid, day); if (p == null) return marketPrice(it); sum += p; }
+  return sum;
+}
+const unitValueOn = (it, day) => { if (hasOverride(it)) return +it.valueOverride; const p = priceOn(it, day); return p == null ? null : p * valueRate(); };
 function changeFor(it, days = 1) {
   const h = histFor(it); if (h.length < 2) return null;
   const last = h[h.length - 1];
@@ -1061,10 +1073,13 @@ function buildTxns() {
     const skipAcq = /^trade\b/i.test(src) || /^opened from/i.test(src) || /business inventory|personal collection/i.test(src);  // the move on the other side is the event
     if (!skipAcq) {
       if (t && t.id) {
-        const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
+        const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
         g.lots.push(it); g.units += it.qty; g.cost += it.qty * (it.unitCost || 0); byTxn.set(t.id, g);
+        const vn = unitValue(it), vt = unitValueOn(it, g.date); if (vn == null) g.unpriced += it.qty; else { g.valNow += it.qty * vn; g.valThen += it.qty * (vt ?? vn); }
       } else {
-        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: 'purchase', who: src || '—', vendor: '', ref: '', lots: [it], units: it.qty, cost: it.qty * (it.unitCost || 0), out: it.qty * (it.unitCost || 0), payer: it.payment || '', currency: 'USD'});
+        const out = it.qty * (it.unitCost || 0), vn = unitValue(it), vt = unitValueOn(it, it.purchaseDate || '');
+        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: 'purchase', who: src || '—', vendor: '', ref: '', lots: [it], units: it.qty, cost: out, out, payer: it.payment || '', currency: 'USD',
+          ...(vn == null ? {} : {profit: it.qty * vn - out, pnl: it.qty * (vt ?? vn) - out, valNow: it.qty * vn, valThen: it.qty * (vt ?? vn)})});
       }
     }
     for (const m of (it.moves || [])) {
@@ -1081,7 +1096,7 @@ function buildTxns() {
       }
     }
   }
-  for (const g of byTxn.values()) { g.out = g.totalUsd != null ? g.totalUsd : g.cost; rows.push(g); }
+  for (const g of byTxn.values()) { g.out = g.totalUsd != null ? g.totalUsd : g.cost; if (g.unpriced < g.units) { g.profit = g.valNow - g.out; g.pnl = g.valThen - g.out; } rows.push(g); }
   for (const g of byOpen.values()) {
     if (!g.stamped) g.outVal = g.outs.reduce((a, o) => a + o.qty * (unitValue(o) ?? 0), 0);  // older openings: contents at today's valuation
     g.profit = g.outVal - g.cost; g.pnl = g.outVal - g.val;
@@ -1107,8 +1122,9 @@ function renderTxn() {
   const tiles = [
     [money(out(mrows)), `Spent in ${tm}`], [money(inn(mrows)), `Received in ${tm}`], [sgn(inn(mrows) - out(mrows)), `Net cash in ${tm}`],
     [money(out(past)), 'Spent to date'], [money(inn(past)), 'Received to date'], [sgn(inn(past) - out(past)), 'Net cash to date'],
-    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.pnl != null && r.type !== 'open'), r => r.profit)), 'Net profit to date', 'received minus cost'], [sgn(sum(past.filter(r => r.pnl != null && r.type !== 'open'), r => r.pnl)), 'Txn P&L to date', `received minus value at ${valuePct()}%`],
+    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.pnl != null && r.type !== 'open' && r.type !== 'purchase'), r => r.profit)), 'Net profit to date', 'received minus cost'], [sgn(sum(past.filter(r => r.pnl != null && r.type !== 'open' && r.type !== 'purchase'), r => r.pnl)), 'Txn P&L to date', `received minus value at ${valuePct()}%`],
     [sgn(sum(past.filter(r => r.type === 'open'), r => r.pnl)), 'Opening P&L to date', `contents vs sealed at ${valuePct()}% · still in stock`],
+    [sgn(sum(past.filter(r => r.type === 'purchase'), r => r.pnl || 0)), 'Purchase P&L to date', `value at ${valuePct()}% when bought vs paid · unrealized`],
   ];
   $('txntiles').innerHTML = tiles.map(([v, l, sub]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}${sub ? `<div class="sub">${sub}</div>` : ''}</div></div>`).join('');
   $('count').textContent = `${rows.length} transaction${rows.length !== 1 ? 's' : ''}`;
@@ -1121,11 +1137,11 @@ function renderTxn() {
   for (const r of rows) {
     if (byDay && (r.date || '—') !== curDay) {
       curDay = r.date || '—'; const d = days.get(curDay);
-      h += `<tr class="dayrow"><td>${esc(curDay)}</td><td colspan="3"><span class="sub">${esc(typesText(d.types))}${d.open ? ` · opening P&amp;L <span class="${d.open >= 0 ? 'good' : 'bad'}">${sgn(d.open)}</span>` : ''}</span></td><td class="num">${d.units}</td><td class="num">${d.out ? money(d.out) : ''}</td><td class="num">${d.inn ? money(d.inn) : ''}</td><td class="num ${d.net >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? money(d.net) : ''}</td><td class="num ${d.pnl >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? money(d.pnl) : ''}</td><td class="hidemob"></td></tr>`;
+      h += `<tr class="dayrow"><td>${esc(curDay)}</td><td colspan="3"><span class="sub">${esc(typesText(d.types))}${d.open ? ` · opening P&amp;L <span class="${d.open >= 0 ? 'good' : 'bad'}">${sgn(d.open)}</span>` : ''}${d.buy ? ` · purchase P&amp;L <span class="${d.buy >= 0 ? 'good' : 'bad'}">${sgn(d.buy)}</span>` : ''}</span></td><td class="num">${d.units}</td><td class="num">${d.out ? money(d.out) : ''}</td><td class="num">${d.inn ? money(d.inn) : ''}</td><td class="num ${d.net >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? money(d.net) : ''}</td><td class="num ${d.pnl >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? money(d.pnl) : ''}</td><td class="hidemob"></td></tr>`;
     }
     tOut += r.out || 0; tIn += r.inn || 0; tP += r.profit || 0; tPnl += r.pnl || 0;
     const what = r.type === 'purchase'
-      ? `${esc(r.ref && r.vendor && r.ref.startsWith(r.vendor) ? r.ref : (r.vendor ? r.vendor + (r.ref ? ' · ' + r.ref : '') : r.ref || ''))}${r.lots.length > 1 ? `<div class="sub">${r.lots.length} lines · ${r.lots.slice(0, 3).map(displayName).map(esc).join(', ')}${r.lots.length > 3 ? ` +${r.lots.length - 3}` : ''}</div>` : `<div class="sub">${esc(displayName(r.lots[0]))}</div>`}${r.currency && r.currency !== 'USD' && r.total != null ? `<div class="sub">${(+r.total).toFixed(2)} ${esc(r.currency)}</div>` : ''}`
+      ? `${esc(r.ref && r.vendor && r.ref.startsWith(r.vendor) ? r.ref : (r.vendor ? r.vendor + (r.ref ? ' · ' + r.ref : '') : r.ref || ''))}${r.lots.length > 1 ? `<div class="sub">${r.lots.length} lines · ${r.lots.slice(0, 3).map(displayName).map(esc).join(', ')}${r.lots.length > 3 ? ` +${r.lots.length - 3}` : ''}</div>` : `<div class="sub">${esc(displayName(r.lots[0]))}</div>`}${r.valNow != null ? `<div class="sub">worth ${money(r.valNow)} now · ${money(r.valThen)} at ${valuePct()}% when bought${r.unpriced ? ` · ${r.unpriced} unpriced` : ''}</div>` : ''}${r.currency && r.currency !== 'USD' && r.total != null ? `<div class="sub">${(+r.total).toFixed(2)} ${esc(r.currency)}</div>` : ''}`
       : `${esc(r.ref)}${r.note ? `<div class="sub">${esc(r.note)}</div>` : ''}`;
     h += `<tr><td><span class="sub">${esc(r.date || '—')}</span>${r.upcoming ? '<div><span class="tag" style="color:var(--warn)">upcoming</span></div>' : ''}</td>
       <td><span class="gchip" style="background:${COLORS[r.type]}">${TXN_LABEL[r.type]}</span></td>
@@ -1219,11 +1235,11 @@ function whereTable(items) {
 function dayGroups(rows) {  // ledger rows → one summary per date, newest first
   const g = new Map();
   for (const r of rows) {
-    const G = g.get(r.date || '—') || {date: r.date || '—', n: 0, units: 0, types: {}, out: 0, inn: 0, net: 0, pnl: 0, open: 0, upcoming: r.upcoming};
+    const G = g.get(r.date || '—') || {date: r.date || '—', n: 0, units: 0, types: {}, out: 0, inn: 0, net: 0, pnl: 0, open: 0, buy: 0, upcoming: r.upcoming};
     G.n++; G.units += r.units || 0; G.types[r.type] = (G.types[r.type] || 0) + 1;
     if (r.type === 'purchase') G.out += r.out || 0;
     if (r.type === 'sale' || r.type === 'trade') G.inn += r.inn || 0;
-    if (r.type === 'open') G.open += r.pnl || 0; else if (r.pnl != null) { G.net += r.profit || 0; G.pnl += r.pnl || 0; }
+    if (r.type === 'open') G.open += r.pnl || 0; else if (r.type === 'purchase') G.buy += r.pnl || 0; else if (r.pnl != null) { G.net += r.profit || 0; G.pnl += r.pnl || 0; }
     g.set(G.date, G);
   }
   return [...g.values()].sort((a, b) => b.date.localeCompare(a.date));
@@ -1232,8 +1248,8 @@ const typesText = t => Object.entries(t).map(([k, n]) => `${n} ${(TXN_LABEL[k] |
 function dayTable() {
   const days = dayGroups(buildTxns().filter(r => !r.upcoming));
   if (!days.length) return '<div class="empty">No transactions yet.</div>';
-  return `<table><tr><th>Day</th><th class="num">Out</th><th class="num">In</th><th class="num">Net profit</th><th class="num">Txn P&amp;L</th><th class="num hidemob">Opening P&amp;L</th></tr>` +
-    days.slice(0, 120).map(d => `<tr><td>${esc(d.date)}<div class="sub">${esc(typesText(d.types))}</div></td><td class="num">${d.out ? money(d.out) : ''}</td><td class="num">${d.inn ? money(d.inn) : ''}</td><td class="num ${d.net >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? sgn(d.net) : ''}</td><td class="num ${d.pnl >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? sgn(d.pnl) : ''}</td><td class="num hidemob ${d.open >= 0 ? 'good' : 'bad'}">${d.open ? sgn(d.open) : ''}</td></tr>`).join('') + '</table>';
+  return `<table><tr><th>Day</th><th class="num">Out</th><th class="num">In</th><th class="num">Net profit</th><th class="num">Txn P&amp;L</th><th class="num hidemob">Opening P&amp;L</th><th class="num hidemob">Purchase P&amp;L</th></tr>` +
+    days.slice(0, 120).map(d => `<tr><td>${esc(d.date)}<div class="sub">${esc(typesText(d.types))}</div></td><td class="num">${d.out ? money(d.out) : ''}</td><td class="num">${d.inn ? money(d.inn) : ''}</td><td class="num ${d.net >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? sgn(d.net) : ''}</td><td class="num ${d.pnl >= 0 ? 'good' : 'bad'}">${d.net || d.pnl ? sgn(d.pnl) : ''}</td><td class="num hidemob ${d.open >= 0 ? 'good' : 'bad'}">${d.open ? sgn(d.open) : ''}</td><td class="num hidemob ${d.buy >= 0 ? 'good' : 'bad'}">${d.buy ? sgn(d.buy) : ''}</td></tr>`).join('') + '</table>';
 }
 function renderStats() {
   const q = $('q').value.trim().toLowerCase(), filtered = Object.keys(state.f).length > 0 || q;
