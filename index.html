@@ -792,7 +792,7 @@ function bookTotals(items) {
 const sgn = n => `<span class="${n > 0.005 ? 'good' : n < -0.005 ? 'bad' : 'dim'}">${n >= 0 ? '+' : ''}${money(n)}</span>`;
 function renderOverview() {
   const q = $('q').value.trim().toLowerCase(), filtered = Object.keys(state.f).length > 0 || q;
-  const t = bookTotals(DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))));
+  const ovItems = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))), t = bookTotals(ovItems), sp = sourcePnl(ovItems);
   const tiles = [
     [money(t.value), `Value @${valuePct()}%`, `market ${money(t.valueMkt)}${t.unpricedCost ? ` · ${money0(t.unpricedCost)} unpriced` : ''}`],
     [sgn(t.unreal), 'Unrealized gain', `on ${money(t.cost - t.unpricedCost)} cost`],
@@ -800,10 +800,25 @@ function renderOverview() {
     [money(t.cost), 'Cost basis on hand', `${t.units} units · ${t.products} products`],
     [money(t.spent), 'Total spent', 'all time, this book'],
     [money(t.incomingValue), `In transit @${valuePct()}%`, `${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
+    [sgn(sp.Target.now), 'Target P&L', `bought-day ${sgn(sp.Target.then)} · ${sp.Target.n} orders`],
+    [sgn(sp.Cardmarket.now), 'Cardmarket P&L', `bought-day ${sgn(sp.Cardmarket.then)} · ${sp.Cardmarket.n} orders`],
+    [sgn(sp.Other.now), 'Other P&L', `everything else · ${sp.Other.n} rows`],
   ];
-  const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit'];
+  const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit', 'Target', 'Cardmarket', 'Other'];
   $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('') + regionBar();
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
+}
+
+// P&L by source: Target and Cardmarket = their purchases vs the valuation; Other = every other row (other purchases, sales, gifts, transfers, trades, openings)
+const SRC_BUCKET = r => r.type === 'purchase' && (r.src === 'Target' || r.src === 'Cardmarket') ? r.src : 'Other';
+function sourcePnl(items) {
+  const rows = buildTxns(items).filter(r => !r.upcoming), b = {Target: [], Cardmarket: [], Other: []};
+  for (const r of rows) b[SRC_BUCKET(r)].push(r);
+  const sum = (a, f) => a.reduce((x, r) => x + (f(r) || 0), 0);
+  const out = {};
+  for (const [k, rs] of Object.entries(b)) out[k] = {rows: rs, n: rs.length, paid: sum(rs.filter(r => r.type === 'purchase'), r => r.out), valNow: sum(rs, r => r.valNow), valThen: sum(rs, r => r.valThen),
+    now: sum(rs, r => r.type === 'purchase' ? r.profit : r.pnl), then: sum(rs, r => r.pnl)};  // purchases: value now vs paid (then: value when bought); everything else: its Txn P&L
+  return out;
 }
 
 // region buttons: one per region, value on hand + in transit, click to filter the whole page by it
@@ -872,6 +887,15 @@ function explainTile(key) {
     title = 'Return on spend';
     lines = [['Realized profit', sg(t.realized)], ['+ unrealized gain', sg(t.unreal)], ['= Gain so far', sg(t.realized + t.unreal)], ['÷ total spent', money(t.spent)], ['= Return on spend', t.spent ? pct((t.realized + t.unreal) / t.spent * 100) : '—', 'total'], ['Unpriced stock counts in spend but not in gain, so this leans low while prices are missing', '']];
     table = '';
+  } else if (key === 'Target' || key === 'Cardmarket' || key === 'Other') {
+    const b = sourcePnl(items)[key], purchases = b.rows.filter(r => r.type === 'purchase'), rest = b.rows.filter(r => r.type !== 'purchase');
+    title = key + ' P&L';
+    lines = key === 'Other'
+      ? [['Purchases from every other source: value @' + pctS + ' now − paid', sg(purchases.reduce((a, r) => a + (r.profit || 0), 0))], ['Sales, gifts, transfers and trades: received − value @' + pctS + ' when they left', sg(rest.filter(r => r.type !== 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['Openings: contents − sealed value @' + pctS, sg(rest.filter(r => r.type === 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['= Other P&L', sg(b.now), 'total']]
+      : [[`${key} orders (dated up to today)`, b.n], ['Paid, tax included', money(b.paid)], [`Worth now: units × market × ${pctS}`, money(b.valNow)], [`= ${key} P&L`, sg(b.now), 'total'], [`Worth on the day bought (price history)`, money(b.valThen)], ['= bought-day P&L', sg(b.then)], ['Units bought are valued whether or not they have since sold or been opened; what happened after is in Other', '']];
+    const rs = b.rows.slice().sort((a, b2) => (b2.date || '').localeCompare(a.date || ''));
+    const [rows, more] = topN(rs, 40);
+    table = mathTable(['Date', 'Type', 'What', 'Units#', 'Paid / in#', 'Worth now#', 'P&L now#', 'Bought-day / P&L#'], rows.map(r => [esc(r.date), r.type === 'purchase' ? esc(r.src || 'purchase') : r.type, esc(r.type === 'purchase' ? (r.ref ? `${r.vendor ? r.vendor + ' · ' : ''}${r.ref}` : displayName(r.lots[0])) : r.ref), r.units, money(r.type === 'purchase' ? r.out : r.inn || 0), r.valNow != null ? money(r.valNow) : '—', r.type === 'purchase' ? (r.profit != null ? sg(r.profit) : '—') : (r.pnl != null ? sg(r.pnl) : '—'), r.pnl != null ? sg(r.pnl) : '—']), more);
   } else if (key === 'transit') {
     title = `In transit @${pctS}`;
     lines = [['Units still marked incoming', t.incomingUnits], ['Their cost', money(t.incomingCost)], [`Their value: units × market × ${pctS} (unpriced count nothing)`, money(t.incomingValue), 'total']];
@@ -1151,19 +1175,19 @@ function showItem(id) { const it = DOC.items.find(x => x.id === id); if (!it) { 
 
 // ---------- transactions ledger ----------
 const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer', gift: 'Gift', open: 'Opened'};
-function buildTxns() {
-  const items = DOC.items.filter(inBook), rows = [], byTxn = new Map(), byOpen = new Map(), td = today();
+function buildTxns(scope) {
+  const items = scope || DOC.items.filter(inBook), rows = [], byTxn = new Map(), byOpen = new Map(), td = today();
   for (const it of items) {
     const t = it.txn, src = it.source || '';
     const skipAcq = /^trade\b/i.test(src) || /^opened from/i.test(src) || /business inventory|personal collection/i.test(src);  // the move on the other side is the event
     if (!skipAcq) {
       if (t && t.id) {
-        const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
+        const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', src: sourceOf(it), who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
         g.lots.push(it); g.units += it.qty; g.cost += it.qty * (it.unitCost || 0); byTxn.set(t.id, g);
         const vn = unitValue(it), vt = unitValueOn(it, g.date); if (vn == null) g.unpriced += it.qty; else { g.valNow += it.qty * vn; g.valThen += it.qty * (vt ?? vn); }
       } else {
         const out = it.qty * (it.unitCost || 0), vn = unitValue(it), vt = unitValueOn(it, it.purchaseDate || '');
-        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: 'purchase', who: src || '—', vendor: '', ref: '', lots: [it], units: it.qty, cost: out, out, payer: it.payment || '', currency: 'USD',
+        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: 'purchase', src: sourceOf(it), who: src || '—', vendor: '', ref: '', lots: [it], units: it.qty, cost: out, out, payer: it.payment || '', currency: 'USD',
           ...(vn == null ? {} : {profit: it.qty * vn - out, pnl: it.qty * (vt ?? vn) - out, valNow: it.qty * vn, valThen: it.qty * (vt ?? vn)})});
       }
     }

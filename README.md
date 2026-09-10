@@ -35,7 +35,11 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     `REGIONS` table in the page). Combine it with Status to split delivered from in transit. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
   - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, 30-day change,
     cost basis on hand, total spent, value in transit, then one button per region (value on hand and
-    in transit) that filters the whole page. Total spent skips lots that came out of an opening, since
+    in transit) that filters the whole page. Three P&L tiles split the gain by source: **Target** and
+    **Cardmarket** are their purchases only (worth at the valuation share now minus paid, with the
+    bought-day figure under it); **Other** is every remaining row: purchases from other sources,
+    sales, gifts, transfers and trades at their Txn P&L, and openings. The three add up to purchase
+    P&L plus Txn P&L plus opening P&L. Total spent skips lots that came out of an opening, since
     their cost is the box already counted; it differs from cost basis by exactly what has left stock. The **Overview**
     tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
     source, who paid, condition, spend by month, sales and trades by month, and channel. It follows
