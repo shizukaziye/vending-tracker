@@ -44,7 +44,8 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     valuation price and creates the twin item in the personal book at that cost. "→ Biz"
     does the reverse.
   - **Sell** records units, price, channel and fees. Tick **Gift** for something given away: the
-    price is 0, the cost is written off, and the ledger and Sold tab flag it as a gift.
+    price is 0, the loss is what it was worth when given (market × the valuation share, stored
+    on the record), and the ledger and Sold tab flag it as a gift.
     **Open** (menu, sealed products only) breaks units into what came out: you list the contents
     with quantities per unit and market prices, the opened units leave stock, and each line
     becomes a new lot at the same location. The cost of the opened units is split across the
