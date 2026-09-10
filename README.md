@@ -48,7 +48,8 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     or destinations that make it up.
   - **Price history**: every price refresh (page button or the nightly import) records one point
     per product per day; changes and movers come from that. A lot matched to several TCGplayer
-  products at once (a promo set, `market.productIds`) is priced as the sum of its parts.
+  products at once (a promo set, `market.productIds`) is priced as the sum of its parts. A fixed
+  `market.plus` (say, a master set's reverse holos) is added on top of that sum.
   - **Two books.** Business is the primary inventory. Personal collection is kept apart.
     Moving something to the collection ("→ PC") books a sale from the business at the
     valuation price and creates the twin item in the personal book at that cost. "→ Biz"

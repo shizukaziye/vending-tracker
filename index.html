@@ -1693,7 +1693,7 @@ async function refreshPrices() {
     for (const it of targets) {
       const parts = partIds(it).map(id => got[id]);
       if (parts.some(p => !p || p.error || p.marketPrice == null)) { if (parts.some(p => p && p.error)) failed++; continue; }
-      it.market.price = +parts.reduce((a, p) => a + p.marketPrice, 0).toFixed(2);
+      it.market.price = +(parts.reduce((a, p) => a + p.marketPrice, 0) + (it.market.plus || 0)).toFixed(2);  // plus: a fixed add-on (e.g. a master set's reverse holos) on top of the summed parts
       it.market.lowest = parts.every(p => p.lowestPrice != null) ? +parts.reduce((a, p) => a + p.lowestPrice, 0).toFixed(2) : null;
       if (!it.market.productIds) it.market.productName = parts[0].productName || it.market.productName;
       it.market.updatedAt = at; updated++;
