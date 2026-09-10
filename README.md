@@ -69,7 +69,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
   - **Transactions**: a dated ledger of money in and out per book. Purchases are grouped per
     order (each Target order, Cardmarket shipment, Bandai order or lot buyout is one row with its
     total, counterparty, lines and who paid); sales, trades and moves to the personal collection
-    come from the records on each product, and so do gifts and box openings. Future-dated rows (a buyout paid next week) show as
+    come from the records on each product, and so do gifts and box openings. A lot bought from the
+    other book ("→ Biz" / "→ PC", or an import from the collection) shows in the receiving book as a
+    Transfer row with what was paid, counted in spend and in purchase P&L; the selling book shows
+    the matching sale. Future-dated rows (a buyout paid next week) show as
     upcoming and stay out of the spent-to-date totals until the date passes. Every row that moves
     units out carries two measures: **Net profit** (received minus what the units cost) and
     **Txn P&L** (received minus what they were worth at the valuation share when they left; the
