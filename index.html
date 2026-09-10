@@ -334,7 +334,7 @@ footer .note{font-size:12px;color:var(--dim)}
         <div id="view_list" class="panel" style="display:none"><div class="tblwrap" id="invtbl"></div></div>
         <div id="view_sold" class="panel" style="display:none"><div class="tblwrap" id="soldtbl"></div></div>
         <div id="view_traded" class="panel" style="display:none"><div class="tblwrap" id="tradedtbl"></div></div>
-        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label></div><div class="tblwrap" id="txntbl"></div></div></div>
+        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option><option value="gift">Gifts</option><option value="open">Opened</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label></div><div class="tblwrap" id="txntbl"></div></div></div>
         <div id="view_stats" style="display:none"></div>
       </div>
     </div>
@@ -354,9 +354,10 @@ footer .note{font-size:12px;color:var(--dim)}
     <div><label>Quantity sold</label><input id="s_qty" type="number" min="1" step="1" value="1"></div>
     <div><label>Sale price per unit ($)</label><input id="s_price" type="number" min="0" step="0.01"></div>
     <div><label>Sale date</label><input id="s_date" type="date"></div>
-    <div><label>Channel</label><input id="s_channel" list="dl_channel" placeholder="Machine, eBay…"></div>
+    <div><label id="s_channel_l">Channel</label><input id="s_channel" list="dl_channel" placeholder="Machine, eBay…"></div>
     <div><label>Fees ($, total)</label><input id="s_fee" type="number" min="0" step="0.01" placeholder="0.00"></div>
     <div><label>Note</label><input id="s_note" placeholder="optional"></div>
+    <div class="wide chk"><input type="checkbox" id="s_gift" onchange="toggleGift()"><span>Gift — given away for nothing. The cost is written off; put who got it in the field above.</span></div>
   </div>
   <div class="dfoot"><button onclick="document.getElementById('selldlg').close()">Cancel</button><button class="primary" onclick="submitSale()">Save sale</button></div>
 </dialog>
@@ -386,6 +387,21 @@ footer .note{font-size:12px;color:var(--dim)}
     <div class="wide"><label>Note</label><input id="b_note" placeholder="optional"></div>
   </div>
   <div class="dfoot"><button onclick="document.getElementById('movedlg').close()">Cancel</button><button class="primary" onclick="submitBookMove()">Move</button></div>
+</dialog>
+
+<dialog id="opendlg" class="wide">
+  <h3 id="opentitle">Open sealed product</h3>
+  <p class="sub" id="openhint" style="margin:0 0 10px"></p>
+  <div class="dgrid">
+    <div><label>Units to open</label><input id="o_qty" type="number" min="1" step="1" value="1"></div>
+    <div><label>Date</label><input id="o_date" type="date"></div>
+    <div class="wide"><label>What came out of each one</label>
+      <div class="tblwrap"><table class="lott" id="o_lines"><tr><th>Product</th><th>Type</th><th class="num">Per unit</th><th class="num">Market $ each</th><th></th></tr></table></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="small" onclick="addOpenLine()">+ line</button><span class="sub" id="o_alloc"></span></div>
+    </div>
+    <div class="wide"><label>Note</label><input id="o_note" placeholder="optional"></div>
+  </div>
+  <div class="dfoot"><button onclick="document.getElementById('opendlg').close()">Cancel</button><button class="primary" onclick="submitOpen()">Open</button></div>
 </dialog>
 
 <dialog id="matchdlg" class="wide">
@@ -472,12 +488,12 @@ function openSettings() {
 async function saveSettings() {
   const api = $('cfg_api').value.trim().replace(/\/+$/, ''), token = $('cfg_token').value.trim();
   if (!api || !token) { alert('Both fields are required.'); return; }
-  const pct = Math.min(100, Math.max(1, +$('cfg_pct').value || 90));
+  const pct = Math.min(100, Math.max(1, +$('cfg_pct').value || 85));
   CFG = {api, token}; localStorage.setItem('vt_cfg', JSON.stringify(CFG));
   await boot();
   if (pct !== valuePct()) { (DOC.settings ||= {}).valuePct = pct; markDirty(); }
 }
-const valuePct = () => +(DOC.settings?.valuePct) || 90;
+const valuePct = () => +(DOC.settings?.valuePct) || 85;
 const valueRate = () => valuePct() / 100;
 function setChip(cls, text, retry) { const c = $('syncchip'); c.className = 'chip' + (cls ? ' ' + cls : ''); c.textContent = text; c.onclick = retry ? () => pushNow() : null; }
 async function apiFetch(method, body, path = '/data') {
@@ -554,7 +570,7 @@ function allMoves(type) {
   out.sort((a, b) => (b.m.date || '').localeCompare(a.m.date || ''));
   return out;
 }
-function channels() { const s = new Set(['Machine']); for (const it of DOC.items) for (const m of (it.moves || [])) if (m.type === 'sold' && m.channel) s.add(m.channel); return [...s].sort(); }
+function channels() { const s = new Set(['Machine']); for (const it of DOC.items) for (const m of (it.moves || [])) if (m.type === 'sold' && !m.gift && m.channel) s.add(m.channel); return [...s].sort(); }
 function parties() { const s = new Set(); for (const it of DOC.items) for (const m of (it.moves || [])) if (m.type === 'traded' && m.counterparty) s.add(m.counterparty); return [...s].sort(); }
 
 // price history: DOC.history[productId] = [[YYYY-MM-DD, price], ...]
@@ -595,6 +611,7 @@ function sourceOf(it) {
   if (/^target/i.test(s)) return 'Target';
   if (/bandai/i.test(s)) return 'Premium Bandai';
   if (/^trade/i.test(s)) return 'Trade';
+  if (/^opened from/i.test(s)) return 'Opened';
   if (/business inventory|personal collection/i.test(s)) return 'Transfer';
   return s || '—';
 }
@@ -734,6 +751,7 @@ function bookTotals(items) {
     if (statusOf(it) === 'Incoming') { incomingCost += rem * uc; incomingUnits += rem; }
     for (const m of (it.moves || [])) {
       const c = m.qty * uc;
+      if (m.type === 'opened') continue;
       if (m.type === 'sold') { revenue += m.qty * m.unitPrice; costSold += c; fees += m.fee || 0; sales += m.qty; }
       else { tradeVal += m.value || 0; tradeCost += c; trades += m.qty; }
     }
@@ -855,6 +873,7 @@ function openMenu(ev, ref) {
     rem > 0 ? `<button onclick="closeMenu();openSale(${r})">Sell</button>` : '',
     rem > 0 ? `<button onclick="closeMenu();openTrade(${r})">Trade</button>` : '',
     rem > 0 ? `<button onclick="closeMenu();openBookMove(${r})">Move to ${other}</button>` : '',
+    rem > 0 && facetsOf(lots[0]).type === 'Sealed' ? `<button onclick="closeMenu();openOpen(${r})">Open (break into contents)</button>` : '',
     `<button onclick="closeMenu();openMatch(${r})">Market price</button>`,
     lots.some(l => l.market?.auto) ? `<button onclick="closeMenu();acceptMatch(${r})">✓ Accept match</button>` : '',
     `<button onclick="closeMenu();openValueOverride(${r})">Override value…</button>`,
@@ -908,7 +927,9 @@ function openDetails(ref) {
       <td class="num">${onHand(l)}<span class="dim">/${l.qty}</span></td><td class="num">${money(l.unitCost || 0)}</td><td>${esc(l.location || '')}<div class="sub">${esc(statusOf(l))}${l.notes ? ' · ' + esc(l.notes) : ''}</div></td>
       <td class="actions">${onHand(l) > 0 ? `<button class="small primary" onclick="$('detdlg').close();openSale('${l.id}')">Sell</button>` : ''}<button class="small" onclick="$('detdlg').close();openForm('${l.id}')">Edit</button><button class="small danger" onclick="$('detdlg').close();delItem('${l.id}')">✕</button></td></tr>`).join('');
   const moves = lots.flatMap(l => (l.moves || []).map(mv => ({l, mv}))).sort((a, b) => (b.mv.date || '').localeCompare(a.mv.date || '')).map(({l, mv}) => mv.type === 'sold'
-    ? `<div class="row"><span>${esc(mv.date)} · sold ${mv.qty} @ ${money(mv.unitPrice)}${mv.channel ? ' · ' + esc(mv.channel) : ''}</span><span>${money(mv.qty * mv.unitPrice - (mv.fee || 0))}</span></div>`
+    ? `<div class="row"><span>${esc(mv.date)} · ${mv.gift ? 'gave away' : 'sold'} ${mv.qty}${mv.gift ? '' : ' @ ' + money(mv.unitPrice)}${mv.channel ? ' · ' + esc(mv.channel) : ''}</span><span>${money(mv.qty * mv.unitPrice - (mv.fee || 0))}</span></div>`
+    : mv.type === 'opened'
+    ? `<div class="row"><span>${esc(mv.date)} · opened ${mv.qty}</span><span class="dim">${esc(openOutputs(mv).map(o => `${o.qty}× ${displayName(o)}`).join(', '))}</span></div>`
     : `<div class="row"><span>${esc(mv.date)} · traded ${mv.qty}${mv.counterparty ? ' with ' + esc(mv.counterparty) : ''}${mv.received ? ' for ' + esc(mv.received) : ''}</span><span>${money(mv.value || 0)}</span></div>`).join('');
   $('dettitle').textContent = displayName(it);
   detRefCur = ref;
@@ -995,7 +1016,7 @@ function renderSold() {
   for (const {it, m} of rows) {
     const rev = m.qty * m.unitPrice, cost = m.qty * (it.unitCost || 0), fee = m.fee || 0, p = rev - cost - fee;
     tRev += rev; tCost += cost; tFee += fee;
-    h += `<tr><td><span class="sub">${esc(m.date || '')}</span></td><td><span class="gchip ${gclass(it.game)}">${esc(it.game)}</span>${esc(displayName(it))}${m.note ? `<div class="sub">${esc(m.note)}</div>` : ''}</td>
+    h += `<tr><td><span class="sub">${esc(m.date || '')}</span></td><td><span class="gchip ${gclass(it.game)}">${esc(it.game)}</span>${esc(displayName(it))}${m.gift ? ' <span class="tag" style="color:var(--warn)">gift</span>' : ''}${m.note ? `<div class="sub">${esc(m.note)}</div>` : ''}</td>
       <td class="hidemob"><span class="sub">${esc(m.channel || '')}</span></td><td class="num">${m.qty}</td><td class="num">${money(m.unitPrice)}</td><td class="num">${money(rev)}</td>
       <td class="num hidemob">${money(cost)}</td><td class="num hidemob">${fee ? money(fee) : '<span class="dim">—</span>'}</td><td class="num ${p >= 0 ? 'good' : 'bad'}">${money(p)}</td>
       <td class="actions"><button class="small danger" onclick="delMove('${it.id}','${m.id}')">✕</button></td></tr>`;
@@ -1024,12 +1045,12 @@ function renderTraded() {
 function showItem(id) { const it = DOC.items.find(x => x.id === id); if (!it) { alert('That item was deleted.'); return; } $('q').value = it.product; $('hideGone').checked = false; setView('grid'); }
 
 // ---------- transactions ledger ----------
-const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer'};
+const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer', gift: 'Gift', open: 'Opened'};
 function buildTxns() {
-  const items = DOC.items.filter(inBook), rows = [], byTxn = new Map(), td = today();
+  const items = DOC.items.filter(inBook), rows = [], byTxn = new Map(), byOpen = new Map(), td = today();
   for (const it of items) {
     const t = it.txn, src = it.source || '';
-    const skipAcq = /^trade\b/i.test(src) || /business inventory|personal collection/i.test(src);  // the move on the other side is the event
+    const skipAcq = /^trade\b/i.test(src) || /^opened from/i.test(src) || /business inventory|personal collection/i.test(src);  // the move on the other side is the event
     if (!skipAcq) {
       if (t && t.id) {
         const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
@@ -1042,13 +1063,18 @@ function buildTxns() {
       const cost = m.qty * (it.unitCost || 0);
       if (m.type === 'sold') {
         const transfer = /personal collection|^business$/i.test(m.channel || '');
-        rows.push({key: 'm:' + m.id, date: m.date || '', type: transfer ? 'transfer' : 'sale', who: m.channel || '—', ref: displayName(it), lots: [it], units: m.qty, cost, inn: m.qty * m.unitPrice - (m.fee || 0), fee: m.fee || 0, profit: m.qty * m.unitPrice - (m.fee || 0) - cost, note: m.note});
+        rows.push({key: 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], units: m.qty, cost, inn: m.qty * m.unitPrice - (m.fee || 0), fee: m.fee || 0, profit: m.qty * m.unitPrice - (m.fee || 0) - cost, note: m.note});
+      } else if (m.type === 'opened') {  // one row per opening, even when it drew from several lots
+        const outs = openOutputs(m), gk = 'o:' + (outs[0]?.fromOpenOf?.moveIds?.[0] || m.id);
+        const g = byOpen.get(gk) || {key: gk, date: m.date || '', type: 'open', who: new Set(), box: displayName(it), lots: [], units: 0, cost: 0, outs, note: m.note};
+        g.who.add(it.location || '—'); g.lots.push(it); g.units += m.qty; g.cost += cost; byOpen.set(gk, g);
       } else {
         rows.push({key: 'm:' + m.id, date: m.date || '', type: 'trade', who: m.counterparty || '—', ref: `${displayName(it)}${m.received ? ' → ' + m.received : ''}`, lots: [it], units: m.qty, cost, inn: m.value || 0, profit: (m.value || 0) - cost, note: m.note});
       }
     }
   }
   for (const g of byTxn.values()) { g.out = g.totalUsd != null ? g.totalUsd : g.cost; rows.push(g); }
+  for (const g of byOpen.values()) { g.who = [...g.who].join(' + '); g.ref = `${g.units}× ${g.box}`; g.note = [g.outs.length ? '→ ' + g.outs.map(o => `${o.qty}× ${displayName(o)}`).join(', ') : '', g.note].filter(Boolean).join(' · '); g.lots = [...g.lots, ...g.outs]; rows.push(g); }
   for (const r of rows) r.upcoming = r.date > td;
   return rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.type || '').localeCompare(a.type || ''));
 }
@@ -1067,14 +1093,14 @@ function renderTxn() {
   const tiles = [
     [money(out(mrows)), `Spent in ${tm}`], [money(inn(mrows)), `Received in ${tm}`], [sgn(inn(mrows) - out(mrows)), `Net cash in ${tm}`],
     [money(out(past)), 'Spent to date'], [money(inn(past)), 'Received to date'], [sgn(inn(past) - out(past)), 'Net cash to date'],
-    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.type === 'sale' || r.type === 'trade'), r => r.profit)), 'Realized profit to date'],
+    [money(out(up)), `Upcoming payments (${up.filter(r => r.type === 'purchase').length})`], [sgn(sum(past.filter(r => r.type === 'sale' || r.type === 'trade' || r.type === 'gift'), r => r.profit)), 'Realized profit to date'],
   ];
   $('txntiles').innerHTML = tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
   $('count').textContent = `${rows.length} transaction${rows.length !== 1 ? 's' : ''}`;
   if (!rows.length) { $('txntbl').innerHTML = '<div class="empty">No transactions match.</div>'; return; }
   let h = `<table><tr><th>Date</th><th>Type</th><th>With</th><th>What</th><th class="num">Units</th><th class="num">Out</th><th class="num">In</th><th class="num">Profit</th><th class="hidemob">Paid by</th></tr>`;
   let tOut = 0, tIn = 0, tP = 0;
-  const COLORS = {purchase: '#66c7ff', sale: '#6ee7a8', trade: '#c78cff', transfer: '#97a0b4'};
+  const COLORS = {purchase: '#66c7ff', sale: '#6ee7a8', trade: '#c78cff', transfer: '#97a0b4', gift: '#f5a3c7', open: '#ffd166'};
   for (const r of rows) {
     tOut += r.out || 0; tIn += r.inn || 0; tP += r.profit || 0;
     const what = r.type === 'purchase'
@@ -1098,7 +1124,7 @@ function groupTable(items, keyFn, label) {
     const G = g[k] ||= {units: 0, cost: 0, value: 0, spent: 0, unpriced: 0, realized: 0, products: 0};
     G.units += rem; G.cost += rem * uc; G.spent += it.qty * uc; if (rem > 0) G.products++;
     if (uv == null) G.unpriced += rem * uc; else G.value += rem * uv;
-    for (const m of (it.moves || [])) G.realized += m.type === 'sold' ? m.qty * m.unitPrice - (m.fee || 0) - m.qty * uc : (m.value || 0) - m.qty * uc;
+    for (const m of (it.moves || [])) if (m.type !== 'opened') G.realized += m.type === 'sold' ? m.qty * m.unitPrice - (m.fee || 0) - m.qty * uc : (m.value || 0) - m.qty * uc;
   }
   const rows = Object.entries(g).filter(([, v]) => v.units > 0 || v.realized).sort((a, b) => (b[1].value + b[1].unpriced) - (a[1].value + a[1].unpriced));
   if (!rows.length) return `<div class="empty">Nothing here.</div>`;
@@ -1119,6 +1145,7 @@ function soldMonthTable(items) {
   for (const it of items) for (const m of (it.moves || [])) {
     const k = (m.date || '').slice(0, 7) || '—'; const G = g[k] ||= {units: 0, rev: 0, profit: 0};
     const cost = m.qty * (it.unitCost || 0);
+    if (m.type === 'opened') continue;
     if (m.type === 'sold') { G.units += m.qty; G.rev += m.qty * m.unitPrice - (m.fee || 0); G.profit += m.qty * m.unitPrice - (m.fee || 0) - cost; }
     else { G.units += m.qty; G.rev += m.value || 0; G.profit += (m.value || 0) - cost; }
   }
@@ -1128,7 +1155,7 @@ function soldMonthTable(items) {
 }
 function channelTable(items) {
   const g = {};
-  for (const it of items) for (const m of (it.moves || [])) if (m.type === 'sold') { const C = g[m.channel || '(none)'] ||= {units: 0, rev: 0, fees: 0, profit: 0}; C.units += m.qty; C.rev += m.qty * m.unitPrice; C.fees += m.fee || 0; C.profit += m.qty * m.unitPrice - (m.fee || 0) - m.qty * (it.unitCost || 0); }
+  for (const it of items) for (const m of (it.moves || [])) if (m.type === 'sold') { const C = g[m.gift ? 'Gift' : (m.channel || '(none)')] ||= {units: 0, rev: 0, fees: 0, profit: 0}; C.units += m.qty; C.rev += m.qty * m.unitPrice; C.fees += m.fee || 0; C.profit += m.qty * m.unitPrice - (m.fee || 0) - m.qty * (it.unitCost || 0); }
   const rows = Object.entries(g).sort((a, b) => b[1].rev - a[1].rev);
   if (!rows.length) return '<div class="empty">No sales yet.</div>';
   return `<table><tr><th>Channel</th><th class="num">Units</th><th class="num">Revenue</th><th class="num">Fees</th><th class="num">Profit</th></tr>` + rows.map(([c, v]) => `<tr><td>${esc(c)}</td><td class="num">${v.units}</td><td class="num">${money(v.rev)}</td><td class="num">${money(v.fees)}</td><td class="num ${v.profit >= 0 ? 'good' : 'bad'}">${money(v.profit)}</td></tr>`).join('') + '</table>';
@@ -1244,16 +1271,22 @@ function openSale(ref) {
   saleRef = ref; const lots = liveLots(ref); if (!lots.length) return; const it = lots[0], rem = refOnHand(ref);
   $('selltitle').textContent = `Sell: ${refName(ref)} (${rem} on hand${lots.length > 1 ? `, ${lots.length} lots, oldest first` : ''})`;
   $('s_qty').value = 1; $('s_qty').max = rem; $('s_price').value = marketPrice(it) != null ? marketPrice(it).toFixed(2) : '';
-  $('s_date').value = today(); $('s_note').value = ''; $('s_channel').value = 'Machine'; $('s_fee').value = '';
+  $('s_date').value = today(); $('s_note').value = ''; $('s_channel').value = 'Machine'; $('s_fee').value = ''; $('s_gift').checked = false; toggleGift();
   $('dl_channel').innerHTML = channels().map(c => `<option value="${esc(c)}">`).join('');
   $('selldlg').showModal();
 }
+function toggleGift() {
+  const g = $('s_gift').checked;
+  $('s_price').disabled = g; $('s_fee').disabled = g;
+  if (g) { $('s_price').value = '0'; $('s_fee').value = ''; $('s_channel').value = ''; }
+  $('s_channel_l').textContent = g ? 'Given to' : 'Channel'; $('s_channel').placeholder = g ? 'who got it' : 'Machine, eBay…';
+}
 function submitSale() {
-  const rem = refOnHand(saleRef), qty = Math.floor(+$('s_qty').value || 0), price = +$('s_price').value;
+  const rem = refOnHand(saleRef), qty = Math.floor(+$('s_qty').value || 0), gift = $('s_gift').checked, price = gift ? 0 : +$('s_price').value;
   if (qty < 1 || qty > rem) { alert(`Quantity must be 1–${rem}.`); return; }
-  if (!(price >= 0) || $('s_price').value === '') { alert('Enter the sale price per unit.'); return; }
-  const fee = Math.max(0, +$('s_fee').value || 0), date = $('s_date').value || today(), channel = $('s_channel').value.trim(), note = $('s_note').value.trim();
-  for (const [lot, n] of takeFifo(saleRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, channel, fee: +(fee * n / qty).toFixed(2), note});
+  if (!gift && (!(price >= 0) || $('s_price').value === '')) { alert('Enter the sale price per unit.'); return; }
+  const fee = gift ? 0 : Math.max(0, +$('s_fee').value || 0), date = $('s_date').value || today(), channel = $('s_channel').value.trim(), note = $('s_note').value.trim();
+  for (const [lot, n] of takeFifo(saleRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, channel, fee: +(fee * n / qty).toFixed(2), note, ...(gift ? {gift: true} : {})});
   $('selldlg').close(); markDirty();
 }
 
@@ -1304,6 +1337,73 @@ function submitBookMove() {
   for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: note || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id});
   $('movedlg').close(); markDirty();
 }
+
+// ---------- open sealed product into its contents ----------
+let openRef = null;
+const CATEGORY_OPTIONS = () => $('f_category').innerHTML;
+function openOpen(ref) {
+  openRef = ref; const lots = liveLots(ref); if (!lots.length) return; const rem = refOnHand(ref);
+  $('opentitle').textContent = `Open: ${refName(ref)} (${rem} on hand${lots.length > 1 ? `, ${lots.length} lots, oldest first` : ''})`;
+  $('openhint').textContent = 'The opened units leave stock and what came out is added as new lots at the same location. Their cost is the cost of the units opened, split by market value when every line has one, otherwise evenly per item.';
+  $('o_qty').value = 1; $('o_qty').max = rem; $('o_date').value = today(); $('o_note').value = '';
+  document.querySelectorAll('#o_lines tr[data-line]').forEach(tr => tr.remove());
+  addOpenLine(); addOpenLine();
+  $('opendlg').showModal();
+}
+function addOpenLine(pre) {
+  const tr = document.createElement('tr'); tr.dataset.line = '1';
+  tr.innerHTML = `<td><input data-f="product" placeholder="e.g. Perfect Order Booster Pack" style="min-width:180px"></td><td><select data-f="category">${CATEGORY_OPTIONS()}</select></td>
+    <td class="num"><input data-f="per" type="number" min="0" step="1" value="1" style="width:64px"></td><td class="num"><input data-f="mp" type="number" min="0" step="0.01" placeholder="—" style="width:84px"></td>
+    <td class="actions"><button class="small danger" onclick="this.closest('tr').remove();openAllocHint()">✕</button></td>`;
+  $('o_lines').appendChild(tr);
+  if (pre) { tr.querySelector('[data-f=product]').value = pre.product || ''; tr.querySelector('[data-f=category]').value = pre.category || 'Other'; tr.querySelector('[data-f=per]').value = pre.per ?? 1; tr.querySelector('[data-f=mp]').value = pre.mp ?? ''; }
+  tr.querySelectorAll('input').forEach(i => i.addEventListener('input', openAllocHint));
+  openAllocHint();
+}
+function openLines() {
+  return [...document.querySelectorAll('#o_lines tr[data-line]')].map(tr => ({
+    product: tr.querySelector('[data-f=product]').value.trim(), category: tr.querySelector('[data-f=category]').value,
+    per: Math.max(0, Math.floor(+tr.querySelector('[data-f=per]').value || 0)),
+    mp: tr.querySelector('[data-f=mp]').value === '' ? null : Math.max(0, +tr.querySelector('[data-f=mp]').value),
+  })).filter(l => l.product && l.per > 0);
+}
+function openAllocHint() {
+  const lines = openLines(), priced = lines.length && lines.every(l => l.mp != null) && lines.some(l => l.mp > 0);
+  const mv = lines.reduce((a, l) => a + l.per * (l.mp || 0), 0);
+  $('o_alloc').textContent = !lines.length ? '' : priced ? `Contents worth ${money(mv)} at market per unit opened; cost split by value.` : 'Cost split evenly per item (add a market price on every line to split by value).';
+}
+function submitOpen() {
+  const lots = liveLots(openRef); if (!lots.length) return; const it = lots[0], rem = refOnHand(openRef);
+  const boxes = Math.floor(+$('o_qty').value || 0);
+  if (boxes < 1 || boxes > rem) { alert(`Quantity must be 1–${rem}.`); return; }
+  const lines = openLines();
+  if (!lines.length) { alert('Add at least one line with a product name and a quantity.'); return; }
+  const date = $('o_date').value || today(), note = $('o_note').value.trim();
+  const taken = takeFifo(openRef, boxes), totalCost = taken.reduce((a, [l, n]) => a + n * (l.unitCost || 0), 0);
+  const created = openInto(it, taken, lines, {date, note, totalCost});
+  $('opendlg').close(); markDirty();
+  const unmatched = created.filter(c => !c.market);
+  if (unmatched.length) openMatch(unmatched[0].id, true);
+}
+// shared by the dialog and by scripted imports: consumes `taken` ([lot, n] pairs) and creates one lot per line
+function openInto(it, taken, lines, {date, note, totalCost, extra}) {
+  const boxes = taken.reduce((a, [, n]) => a + n, 0);
+  const priced = lines.every(l => l.mp != null) && lines.some(l => l.mp > 0);
+  const weight = l => priced ? l.mp : 1, denom = lines.reduce((a, l) => a + l.per * weight(l), 0);
+  const moveIds = [];
+  for (const [lot, n] of taken) { const mv = {id: uid(), type: 'opened', qty: n, date, note}; (lot.moves ||= []).push(mv); moveIds.push(mv.id); }
+  const out = [];
+  for (const l of lines) {
+    const unitCost = +((totalCost / boxes) * weight(l) / denom).toFixed(4);
+    const c = {id: uid(), book: bookOf(it), moves: [], createdAt: new Date().toISOString(), game: it.game, product: l.product, category: l.category, qty: l.per * boxes, unitCost,
+      purchaseDate: date, payment: it.payment || '', source: `Opened from ${displayName(it)}`, location: it.location || '', tags: ['opened'],
+      notes: note || `From ${boxes}× ${displayName(it)}`, attrs: {...(l.attrs || {}), type: SEALED.has(l.category) ? 'sealed' : 'single'}, fromOpenOf: {itemId: it.id, moveIds}, ...(extra || {})};
+    if (l.market) c.market = {...l.market}; else if (l.mp != null) c.market = {source: 'manual', price: l.mp, updatedAt: new Date().toISOString(), auto: false};
+    DOC.items.push(c); out.push(c);
+  }
+  return out;
+}
+const openOutputs = mv => DOC.items.filter(x => x.fromOpenOf?.moveIds?.includes(mv.id));
 
 // ---------- accept an auto-match ----------
 function acceptMatch(ref) {
@@ -1376,22 +1476,29 @@ function setManualPrice() {
 }
 function clearMarket() { const lots = matchLots(); for (const it of lots) delete it.market; describeMarket(lots[0]); markDirty(); }
 async function refreshPrices() {
-  const targets = DOC.items.filter(it => it.market && it.market.source === 'tcgplayer' && it.market.productId);
+  const partIds = it => it.market.productIds?.length ? it.market.productIds : [it.market.productId];
+  const targets = DOC.items.filter(it => it.market && it.market.source === 'tcgplayer' && (it.market.productId || it.market.productIds?.length));
   if (!targets.length) { alert('No products are matched to TCGplayer yet.'); return; }
   const btn = $('btn_prices'); btn.disabled = true; btn.textContent = '↻ Prices…';
-  const ids = [...new Set(targets.map(it => it.market.productId))];
+  const ids = [...new Set(targets.flatMap(partIds))];
+  const got = {};
   let updated = 0, failed = 0;
   try {
     for (let i = 0; i < ids.length; i += 20) {
       const res = await apiFetch('GET', null, `/market/price?ids=${ids.slice(i, i + 20).join(',')}`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const j = await res.json();
-      for (const it of targets) {
-        const p = j.prices[it.market.productId];
-        if (!p || p.error || p.marketPrice == null) { if (p && p.error) failed++; continue; }
-        it.market.price = p.marketPrice; it.market.lowest = p.lowestPrice; it.market.productName = p.productName || it.market.productName; it.market.updatedAt = j.checkedAt; updated++;
-      }
+      Object.assign(got, j.prices);
       for (const [pid, p] of Object.entries(j.prices)) if (p && p.marketPrice != null) recordPrice(pid, p.marketPrice);
+    }
+    const at = new Date().toISOString();
+    for (const it of targets) {
+      const parts = partIds(it).map(id => got[id]);
+      if (parts.some(p => !p || p.error || p.marketPrice == null)) { if (parts.some(p => p && p.error)) failed++; continue; }
+      it.market.price = +parts.reduce((a, p) => a + p.marketPrice, 0).toFixed(2);
+      it.market.lowest = parts.every(p => p.lowestPrice != null) ? +parts.reduce((a, p) => a + p.lowestPrice, 0).toFixed(2) : null;
+      if (!it.market.productIds) it.market.productName = parts[0].productName || it.market.productName;
+      it.market.updatedAt = at; updated++;
     }
     markDirty(); setChip('ok', `prices: ${updated} updated${failed ? ', ' + failed + ' failed' : ''}`);
   } catch (e) { alert('Price refresh failed: ' + e.message); }

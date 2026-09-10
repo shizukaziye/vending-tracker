@@ -2,7 +2,7 @@
 
 Inventory tracker for a Pokemon / Riftbound / One Piece vending business, plus a separate
 personal collection. Every item is acquired, then either sold or traded. Stock on hand is
-valued at a set share of TCGplayer market price (90% by default).
+valued at a set share of TCGplayer market price (85% by default; change it in settings).
 
 - **Page** (`index.html`): one self-contained file on GitHub Pages.
   - **Adding stock**: type in the "Add" box at the top (e.g. `ahri sig`). Every Riftbound
@@ -31,18 +31,25 @@ valued at a set share of TCGplayer market price (90% by default).
     single), product kind, set, rarity, printing (standard, showcase, promo, overnumbered,
     signature), condition, finish, language, source, location, who paid, market-price state, and
     your own tags. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
-  - **Overview strip** at the top of every view: value at 90%, unrealized gain, day and week change,
+  - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, day and week change,
     cost basis, total spent, realized profit, return on spend, units in transit. The **Overview**
     tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
     source, who paid, condition, spend by month, sales and trades by month, and channel. It follows
     the active filters, so you can get an overview of one set or one game.
   - **Price history**: every price refresh (page button or the nightly import) records one point
-    per product per day; changes and movers come from that.
+    per product per day; changes and movers come from that. A lot matched to several TCGplayer
+  products at once (a promo set, `market.productIds`) is priced as the sum of its parts.
   - **Two books.** Business is the primary inventory. Personal collection is kept apart.
     Moving something to the collection ("→ PC") books a sale from the business at the
     valuation price and creates the twin item in the personal book at that cost. "→ Biz"
     does the reverse.
-  - **Sell** records units, price, channel and fees. **Trade** records units traded away,
+  - **Sell** records units, price, channel and fees. Tick **Gift** for something given away: the
+    price is 0, the cost is written off, and the ledger and Sold tab flag it as a gift.
+    **Open** (menu, sealed products only) breaks units into what came out: you list the contents
+    with quantities per unit and market prices, the opened units leave stock, and each line
+    becomes a new lot at the same location. The cost of the opened units is split across the
+    lines by market value (evenly when nothing is priced; zero-priced lines take no cost). The
+    ledger shows one "Opened" row per lot with the contents. **Trade** records units traded away,
     the dollar value received, what came back and with whom, and can add the return as
     new inventory in one step (linked from the Traded tab).
   - **Market price** per item: the `$` button searches TCGplayer through the Worker and
@@ -52,10 +59,10 @@ valued at a set share of TCGplayer market price (90% by default).
   - **Transactions**: a dated ledger of money in and out per book. Purchases are grouped per
     order (each Target order, Cardmarket shipment, Bandai order or lot buyout is one row with its
     total, counterparty, lines and who paid); sales, trades and moves to the personal collection
-    come from the records on each product. Future-dated rows (a buyout paid next week) show as
+    come from the records on each product, and so do gifts and box openings. Future-dated rows (a buyout paid next week) show as
     upcoming and stay out of the spent-to-date totals until the date passes. Filter by type and
     month; the search box applies too.
-  - **Stats** per book: value at 90% of market, on-hand cost, unrealized gain, realized
+  - **Stats** per book: value at the set share of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
 - **API** (`worker/`): a Cloudflare Worker that stores one JSON document in KV behind a
   bearer token, and proxies TCGplayer search and price lookups (`/market/search`,
