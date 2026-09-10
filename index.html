@@ -65,6 +65,8 @@ th.num{text-align:right}
 .ov .v{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
 .ov .l{font-size:11px;color:var(--dim);margin-top:3px;text-transform:uppercase;letter-spacing:.04em}
 .ov .s{font-size:11.5px;margin-top:2px}
+.ov .t{cursor:pointer} .ov .t:hover{border-color:var(--accent)}
+.math{margin:0 0 12px;font-variant-numeric:tabular-nums} .math .row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed var(--border)} .math .row.total{font-weight:700;border-bottom:0;border-top:1px solid var(--border);margin-top:2px;padding-top:6px}
 /* toolbar */
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
 .toolbar.pin{position:sticky;top:0;z-index:40;background:var(--bg);padding:8px 0 6px;margin:0 -4px 10px;padding-left:4px;padding-right:4px;border-bottom:1px solid var(--border)}
@@ -388,6 +390,12 @@ footer .note{font-size:12px;color:var(--dim)}
     <div class="wide"><label>Note</label><input id="b_note" placeholder="optional"></div>
   </div>
   <div class="dfoot"><button onclick="document.getElementById('movedlg').close()">Cancel</button><button class="primary" onclick="submitBookMove()">Move</button></div>
+</dialog>
+
+<dialog id="mathdlg" class="wide" style="max-width:760px">
+  <h3 id="mathtitle">The math</h3>
+  <div id="mathbody"></div>
+  <div class="dfoot"><button onclick="document.getElementById('mathdlg').close()">Close</button></div>
 </dialog>
 
 <dialog id="opendlg" class="wide">
@@ -794,8 +802,75 @@ function renderOverview() {
     [t.spent ? pct((t.realized + t.unreal) / t.spent * 100) : '—', 'Return on spend', 'realized + unrealized'],
     [money(t.incomingValue), `In transit @${valuePct()}%`, `${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
   ];
-  $('overview').innerHTML = tiles.map(([v, l, s]) => `<div class="t"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('');
+  const keys = ['value', 'unreal', 'day', 'cost', 'spent', 'realized', 'return', 'transit'];
+  $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('');
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
+}
+
+// ---------- "show the math" behind each overview tile ----------
+function overviewItems() { const q = $('q').value.trim().toLowerCase(); return DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))); }
+function mathTable(head, body, more) {  // head entries ending in '#' are numeric columns
+  if (!body.length) return '<div class="empty">Nothing to show.</div>';
+  const num = head.map(h => h.endsWith('#'));
+  return `<div class="tblwrap"><table><tr>${head.map((h, i) => `<th${num[i] ? ' class="num"' : ''}>${esc(h.replace(/#$/, ''))}</th>`).join('')}</tr>` +
+    body.map(r => `<tr>${r.map((c, i) => `<td${num[i] ? ' class="num"' : ''}>${c}</td>`).join('')}</tr>`).join('') + `</table>${more ? `<div class="sub" style="margin-top:6px">${esc(more)}</div>` : ''}</div>`;
+}
+const mathRows = lines => `<div class="math">${lines.map(([k, v, cls]) => `<div class="row ${cls || ''}"><span class="dim">${k}</span><span>${v}</span></div>`).join('')}</div>`;
+const topN = (arr, n = 25) => [arr.slice(0, n), arr.length > n ? `and ${arr.length - n} more` : ''];
+function explainTile(key) {
+  const items = overviewItems(), t = bookTotals(items), r = valueRate(), pctS = valuePct() + '%', filtered = Object.keys(state.f).length > 0 || $('q').value.trim();
+  const live = items.filter(it => onHand(it) > 0);
+  const byProduct = (f) => { const g = {}; for (const it of live) { const k = displayName(it); (g[k] ||= {k, it, units: 0, cost: 0, value: 0, mkt: 0, gain: 0, day: 0, transit: 0}); f(g[k], it); } return Object.values(g); };
+  const sg = sgn;
+  let title = '', lines = [], table = '';
+  if (key === 'value') {
+    title = `Value @${pctS}`;
+    const custom = live.filter(hasOverride), unpriced = live.filter(it => unitValue(it) == null);
+    lines = [['On-hand units with a market price', live.filter(it => marketPrice(it) != null && !hasOverride(it)).reduce((a, it) => a + onHand(it), 0)], ['Their market value (units × market price)', money(t.valueMkt)], [`× valuation share`, pctS],
+      [`Custom-valued units (own value, not market × ${pctS})`, `${custom.reduce((a, it) => a + onHand(it), 0)} · ${money(custom.reduce((a, it) => a + onHand(it) * unitValue(it), 0))}`],
+      ['Unpriced units (count nothing)', `${unpriced.reduce((a, it) => a + onHand(it), 0)} · ${money(t.unpricedCost)} cost`], ['= Value', money(t.value), 'total']];
+    const rows = byProduct((g, it) => { g.units += onHand(it); g.mkt += onHand(it) * (marketPrice(it) || 0); g.value += onHand(it) * (unitValue(it) || 0); }).sort((a, b) => b.value - a.value);
+    const [rs, more] = topN(rows); table = mathTable(['Product', 'Units#', 'Market each#', `Unit value#`, 'Value#'], rs.map(g => [esc(g.k), g.units, money(g.units ? g.mkt / g.units : 0), unitValue(g.it) != null ? money(unitValue(g.it)) : '—', money(g.value)]), more);
+  } else if (key === 'unreal') {
+    title = 'Unrealized gain';
+    lines = [[`Value @${pctS} of priced stock`, money(t.value)], ['− cost of that same priced stock', money(t.cost - t.unpricedCost)], ['(unpriced stock left out of both sides)', money(t.unpricedCost) + ' cost'], ['= Unrealized gain', sg(t.unreal), 'total']];
+    const rows = byProduct((g, it) => { if (unitValue(it) == null) return; g.units += onHand(it); g.cost += onHand(it) * (it.unitCost || 0); g.value += onHand(it) * unitValue(it); }).filter(g => g.units).map(g => (g.gain = g.value - g.cost, g)).sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain));
+    const [rs, more] = topN(rows); table = mathTable(['Product', 'Units#', 'Cost#', 'Value#', 'Gain#'], rs.map(g => [esc(g.k), g.units, money(g.cost), money(g.value), sg(g.gain)]), more);
+  } else if (key === 'day') {
+    title = 'Day change';
+    lines = [['For each priced product: units × (market now − market at the previous price snapshot)', money(t.day)], [`× valuation share`, pctS], ['= Day change', sg(t.day * r), 'total'], ['Same over 7 days', sg(t.week * r)]];
+    const rows = live.map(it => ({it, c: changeFor(it, 1)})).filter(x => x.c && x.c.abs).map(x => ({k: displayName(x.it), units: onHand(x.it), abs: x.c.abs, since: x.c.since, day: onHand(x.it) * x.c.abs * r})).sort((a, b) => Math.abs(b.day) - Math.abs(a.day));
+    const [rs, more] = topN(rows); table = mathTable(['Product', 'Units#', 'Market change#', 'Since', `On position @${pctS}#`], rs.map(g => [esc(g.k), g.units, sg(g.abs), esc(g.since), sg(g.day)]), more || (rows.length ? '' : 'No product has two price snapshots yet.'));
+  } else if (key === 'cost') {
+    title = 'Cost basis on hand';
+    lines = [['For every lot still on hand: units on hand × unit cost (tax spread in)', ''], ['Units', t.units], ['Products', t.products], ['= Cost basis', money(t.cost), 'total']];
+    const rows = byProduct((g, it) => { g.units += onHand(it); g.cost += onHand(it) * (it.unitCost || 0); }).sort((a, b) => b.cost - a.cost);
+    const [rs, more] = topN(rows); table = mathTable(['Product', 'Units#', 'Avg cost#', 'Cost#'], rs.map(g => [esc(g.k), g.units, money(g.units ? g.cost / g.units : 0), money(g.cost)]), more);
+  } else if (key === 'spent') {
+    title = 'Total spent';
+    const sold = items.reduce((a, it) => a + (it.qty - onHand(it)) * (it.unitCost || 0), 0);
+    lines = [['For every lot ever bought in this book: quantity bought × unit cost', ''], ['Still on hand', money(t.cost)], ['Already sold, traded, gifted, opened or moved', money(sold)], ['= Total spent', money(t.spent), 'total'], ['Lots that came out of an opening or a trade count at the cost they carried in', '']];
+    const g = {}; for (const it of items) { const k = sourceOf(it); const G = g[k] ||= {units: 0, spent: 0, lots: 0}; G.units += it.qty; G.spent += it.qty * (it.unitCost || 0); G.lots++; }
+    table = mathTable(['Source', 'Lots#', 'Units#', 'Spent#'], Object.entries(g).sort((a, b) => b[1].spent - a[1].spent).map(([k, v]) => [esc(k), v.lots, v.units, money(v.spent)]));
+  } else if (key === 'realized') {
+    title = 'Realized profit';
+    lines = [['Sales revenue (units × price, gifts at $0, moves to the collection at their price)', money(t.revenue)], ['− cost of the units sold', money(t.costSold)], ['− fees', money(t.fees)], ['= Profit on sales', sg(t.saleProfit)], ['Value received in trades', money(t.tradeVal)], ['− cost of the units traded away', money(t.tradeCost)], ['= Gain on trades', sg(t.tradeGain)], ['= Realized profit', sg(t.realized), 'total'], ['Openings are not realized: their gain sits in the new lots', '']];
+    const rows = []; for (const it of items) for (const m of (it.moves || [])) if (m.type !== 'opened') rows.push({date: m.date || '', k: displayName(it), type: m.type === 'sold' ? (m.gift ? 'gift' : /personal collection|^business$/i.test(m.channel || '') ? 'transfer' : 'sale') : 'trade', qty: m.qty, inn: moveIn(m), cost: moveCost(it, m), p: moveIn(m) - moveCost(it, m)});
+    rows.sort((a, b) => b.date.localeCompare(a.date)); const [rs, more] = topN(rows, 40);
+    table = mathTable(['Date', 'Product', 'Type', 'Units#', 'In#', 'Cost#', 'Profit#'], rs.map(g => [esc(g.date), esc(g.k), g.type, g.qty, money(g.inn), money(g.cost), sg(g.p)]), more);
+  } else if (key === 'return') {
+    title = 'Return on spend';
+    lines = [['Realized profit', sg(t.realized)], ['+ unrealized gain', sg(t.unreal)], ['= Gain so far', sg(t.realized + t.unreal)], ['÷ total spent', money(t.spent)], ['= Return on spend', t.spent ? pct((t.realized + t.unreal) / t.spent * 100) : '—', 'total'], ['Unpriced stock counts in spend but not in gain, so this leans low while prices are missing', '']];
+    table = '';
+  } else if (key === 'transit') {
+    title = `In transit @${pctS}`;
+    lines = [['Units still marked incoming', t.incomingUnits], ['Their cost', money(t.incomingCost)], [`Their value: units × market × ${pctS} (unpriced count nothing)`, money(t.incomingValue), 'total']];
+    const g = {}; for (const it of live) if (statusOf(it) === 'Incoming') { const k = regionOf(it) + ' · ' + (it.location || '—'); const G = g[k] ||= {units: 0, cost: 0, value: 0, products: 0}; G.units += onHand(it); G.cost += onHand(it) * (it.unitCost || 0); G.value += onHand(it) * (unitValue(it) || 0); G.products++; }
+    table = mathTable(['Heading to', 'Products#', 'Units#', 'Cost#', 'Value#'], Object.entries(g).sort((a, b) => b[1].value - a[1].value).map(([k, v]) => [esc(k), v.products, v.units, money(v.cost), money(v.value)]));
+  }
+  $('mathtitle').textContent = title + (filtered ? ' · filtered view' : '');
+  $('mathbody').innerHTML = mathRows(lines) + table;
+  $('mathdlg').showModal();
 }
 
 // ---------- grid ----------

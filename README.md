@@ -37,7 +37,9 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     cost basis, total spent, realized profit, return on spend, value in transit. The **Overview**
     tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
     source, who paid, condition, spend by month, sales and trades by month, and channel. It follows
-    the active filters, so you can get an overview of one set or one game.
+    the active filters, so you can get an overview of one set or one game. Click any strip tile for
+    the math behind it: the formula with the real numbers filled in, then the products, moves
+    or destinations that make it up.
   - **Price history**: every price refresh (page button or the nightly import) records one point
     per product per day; changes and movers come from that. A lot matched to several TCGplayer
   products at once (a promo set, `market.productIds`) is priced as the sum of its parts.
