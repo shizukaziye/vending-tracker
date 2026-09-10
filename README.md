@@ -10,7 +10,7 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     price; TCGplayer search results for other games follow a moment later. Pick one and it is
     added at quantity 1, matched and priced, with a "just added" strip to adjust quantity,
     cost, condition, location, source and who paid. Arrow keys and Enter work too. The old form
-    is behind the small "manual" button.
+    is behind the small "manual" button. Cards sort by market price by default.
   - **Layout**: the toolbar (Add box, views, search, sort, card size S/M/L) stays pinned while
     you scroll and shows a one-line summary once the overview strip is off screen. Cards carry a
     colored stripe per game, cost / value / gain cells, and Sell / Trade / Value buttons on hover.
@@ -33,8 +33,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     state, and your own tags. Region is derived from the location: Zerokata, 6209 Kit Creek and
     Home are North Carolina; Bubububu and Symph are California; Cardmarket is Poland (the
     `REGIONS` table in the page). Combine it with Status to split delivered from in transit. Counts update as you narrow. Search, sort, and "hide sold out" sit above.
-  - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, day and week change,
-    cost basis, total spent, realized profit, return on spend, value in transit. The **Overview**
+  - **Overview strip** at the top of every view: value at the set share of market, unrealized gain, 30-day change,
+    cost basis on hand, total spent, value in transit, then one button per region (value on hand and
+    in transit) that filters the whole page. Total spent skips lots that came out of an opening, since
+    their cost is the box already counted; it differs from cost basis by exactly what has left stock. The **Overview**
     tab adds top holdings, biggest movers, and breakdowns by game, set, type, printing, location,
     source, who paid, condition, spend by month, sales and trades by month, and channel. It follows
     the active filters, so you can get an overview of one set or one game. Click any strip tile for

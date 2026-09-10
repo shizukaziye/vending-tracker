@@ -66,6 +66,7 @@ th.num{text-align:right}
 .ov .l{font-size:11px;color:var(--dim);margin-top:3px;text-transform:uppercase;letter-spacing:.04em}
 .ov .s{font-size:11.5px;margin-top:2px}
 .ov .t{cursor:pointer} .ov .t:hover{border-color:var(--accent)}
+.ov .regbar{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px} .ov .regbar button{font-size:12.5px;padding:6px 12px} .ov .regbar button.on{border-color:var(--accent);color:var(--accent)}
 .math{margin:0 0 12px;font-variant-numeric:tabular-nums} .math .row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed var(--border)} .math .row.total{font-weight:700;border-bottom:0;border-top:1px solid var(--border);margin-top:2px;padding-top:6px}
 /* toolbar */
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
@@ -285,7 +286,7 @@ footer .note{font-size:12px;color:var(--dim)}
       <input id="q" placeholder="Search…" oninput="renderAll()" style="min-width:180px">
       <select id="sort" onchange="renderAll()">
         <option value="new">Newest</option><option value="old">Oldest</option>
-        <option value="value">Value ↓</option><option value="market">Market price ↓</option>
+        <option value="value">Value ↓</option><option value="market" selected>Market price ↓</option>
         <option value="gain">Gain ↓</option><option value="gainpct">Gain % ↓</option>
         <option value="chg">Change ↓</option><option value="chgneg">Change ↑</option>
         <option value="name">Name</option><option value="qty">Quantity ↓</option>
@@ -768,14 +769,14 @@ function refreshDatalists() {
 
 // ---------- overview strip ----------
 function bookTotals(items) {
-  let units = 0, cost = 0, value = 0, valueMkt = 0, unpricedCost = 0, spent = 0, day = 0, week = 0, incomingCost = 0, incomingUnits = 0, incomingValue = 0;
+  let units = 0, cost = 0, value = 0, valueMkt = 0, unpricedCost = 0, spent = 0, day = 0, week = 0, month = 0, incomingCost = 0, incomingUnits = 0, incomingValue = 0;
   let revenue = 0, costSold = 0, fees = 0, tradeVal = 0, tradeCost = 0, sales = 0, trades = 0, products = 0;
   for (const it of items) {
     const rem = onHand(it), uc = it.unitCost || 0, mp = marketPrice(it), uv = unitValue(it);
-    units += rem; cost += rem * uc; spent += it.qty * uc; if (rem > 0) products++;
+    units += rem; cost += rem * uc; if (!it.fromOpenOf) spent += it.qty * uc; if (rem > 0) products++;
     if (uv == null) unpricedCost += rem * uc; else { value += rem * uv; valueMkt += rem * (mp ?? uv); }
-    const c1 = changeFor(it, 1), c7 = changeFor(it, 7);
-    if (c1) day += rem * c1.abs; if (c7) week += rem * c7.abs;
+    const c1 = changeFor(it, 1), c7 = changeFor(it, 7), c30 = changeFor(it, 30);
+    if (c1) day += rem * c1.abs; if (c7) week += rem * c7.abs; if (c30) month += rem * c30.abs;
     if (statusOf(it) === 'Incoming') { incomingCost += rem * uc; incomingUnits += rem; incomingValue += rem * (uv ?? 0); }
     for (const m of (it.moves || [])) {
       const c = moveCost(it, m);
@@ -785,7 +786,7 @@ function bookTotals(items) {
     }
   }
   const saleProfit = revenue - costSold - fees, tradeGain = tradeVal - tradeCost;
-  return {units, cost, value, valueMkt, unpricedCost, spent, day, week, incomingCost, incomingUnits, incomingValue, revenue, costSold, fees, tradeVal, tradeCost, sales, trades, products,
+  return {units, cost, value, valueMkt, unpricedCost, spent, day, week, incomingCost, incomingUnits, incomingValue, month, revenue, costSold, fees, tradeVal, tradeCost, sales, trades, products,
     saleProfit, tradeGain, realized: saleProfit + tradeGain, unreal: value - (cost - unpricedCost)};
 }
 const sgn = n => `<span class="${n > 0.005 ? 'good' : n < -0.005 ? 'bad' : 'dim'}">${n >= 0 ? '+' : ''}${money(n)}</span>`;
@@ -795,17 +796,25 @@ function renderOverview() {
   const tiles = [
     [money(t.value), `Value @${valuePct()}%`, `market ${money(t.valueMkt)}${t.unpricedCost ? ` · ${money0(t.unpricedCost)} unpriced` : ''}`],
     [sgn(t.unreal), 'Unrealized gain', `on ${money(t.cost - t.unpricedCost)} cost`],
-    [sgn(t.day * valueRate()), 'Day change', `week ${t.week >= 0 ? '+' : ''}${money(t.week * valueRate())}`],
+    [sgn(t.month * valueRate()), '30d change', `7d ${t.week >= 0 ? '+' : ''}${money(t.week * valueRate())}`],
     [money(t.cost), 'Cost basis on hand', `${t.units} units · ${t.products} products`],
     [money(t.spent), 'Total spent', 'all time, this book'],
-    [sgn(t.realized), 'Realized profit', `sales ${money0(t.saleProfit)} · trades ${money0(t.tradeGain)}`],
-    [t.spent ? pct((t.realized + t.unreal) / t.spent * 100) : '—', 'Return on spend', 'realized + unrealized'],
     [money(t.incomingValue), `In transit @${valuePct()}%`, `${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
   ];
-  const keys = ['value', 'unreal', 'day', 'cost', 'spent', 'realized', 'return', 'transit'];
-  $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('');
+  const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit'];
+  $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('') + regionBar();
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
 }
+
+// region buttons: one per region, value on hand + in transit, click to filter the whole page by it
+function regionBar() {
+  const q = $('q').value.trim().toLowerCase(), base = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it), 'region') && onHand(it) > 0);
+  const g = {}; for (const it of base) { const k = regionOf(it), G = g[k] ||= {on: 0, transit: 0}; const v = onHand(it) * (unitValue(it) || 0); if (statusOf(it) === 'Incoming') G.transit += v; else G.on += v; }
+  const names = [...REGIONS.map(x => x[1]), ...(g.Other ? ['Other'] : [])];
+  const active = state.f.region;
+  return `<div class="regbar"><button class="${!active ? 'on' : ''}" onclick="setRegion(null)">All regions</button>` + names.map(r => { const G = g[r] || {on: 0, transit: 0}; return `<button class="${active?.has(r) ? 'on' : ''}" onclick="setRegion(${jsArg(r)})"><b>${esc(r)}</b> ${money0(G.on)}${G.transit ? ` <span class="dim">+ ${money0(G.transit)} in transit</span>` : ''}</button>`; }).join('') + '</div>';
+}
+function setRegion(r) { if (!r || state.f.region?.has(r)) delete state.f.region; else state.f.region = new Set([r]); renderAll(); }
 
 // ---------- "show the math" behind each overview tile ----------
 function overviewItems() { const q = $('q').value.trim().toLowerCase(); return DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))); }
@@ -836,10 +845,10 @@ function explainTile(key) {
     lines = [[`Value @${pctS} of priced stock`, money(t.value)], ['− cost of that same priced stock', money(t.cost - t.unpricedCost)], ['(unpriced stock left out of both sides)', money(t.unpricedCost) + ' cost'], ['= Unrealized gain', sg(t.unreal), 'total']];
     const rows = byProduct((g, it) => { if (unitValue(it) == null) return; g.units += onHand(it); g.cost += onHand(it) * (it.unitCost || 0); g.value += onHand(it) * unitValue(it); }).filter(g => g.units).map(g => (g.gain = g.value - g.cost, g)).sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain));
     const [rs, more] = topN(rows); table = mathTable(['Product', 'Units#', 'Cost#', 'Value#', 'Gain#'], rs.map(g => [esc(g.k), g.units, money(g.cost), money(g.value), sg(g.gain)]), more);
-  } else if (key === 'day') {
-    title = 'Day change';
-    lines = [['For each priced product: units × (market now − market at the previous price snapshot)', money(t.day)], [`× valuation share`, pctS], ['= Day change', sg(t.day * r), 'total'], ['Same over 7 days', sg(t.week * r)]];
-    const rows = live.map(it => ({it, c: changeFor(it, 1)})).filter(x => x.c && x.c.abs).map(x => ({k: displayName(x.it), units: onHand(x.it), abs: x.c.abs, since: x.c.since, day: onHand(x.it) * x.c.abs * r})).sort((a, b) => Math.abs(b.day) - Math.abs(a.day));
+  } else if (key === 'month') {
+    title = '30-day change';
+    lines = [['For each priced product: units × (market now − market at the last snapshot 30+ days ago, or the oldest one)', money(t.month)], [`× valuation share`, pctS], ['= 30d change', sg(t.month * r), 'total'], ['Same over 7 days', sg(t.week * r)], ['Same since the last snapshot', sg(t.day * r)]];
+    const rows = live.map(it => ({it, c: changeFor(it, 30)})).filter(x => x.c && x.c.abs).map(x => ({k: displayName(x.it), units: onHand(x.it), abs: x.c.abs, since: x.c.since, day: onHand(x.it) * x.c.abs * r})).sort((a, b) => Math.abs(b.day) - Math.abs(a.day));
     const [rs, more] = topN(rows); table = mathTable(['Product', 'Units#', 'Market change#', 'Since', `On position @${pctS}#`], rs.map(g => [esc(g.k), g.units, sg(g.abs), esc(g.since), sg(g.day)]), more || (rows.length ? '' : 'No product has two price snapshots yet.'));
   } else if (key === 'cost') {
     title = 'Cost basis on hand';
@@ -849,8 +858,9 @@ function explainTile(key) {
   } else if (key === 'spent') {
     title = 'Total spent';
     const sold = items.reduce((a, it) => a + (it.qty - onHand(it)) * (it.unitCost || 0), 0);
-    lines = [['For every lot ever bought in this book: quantity bought × unit cost', ''], ['Still on hand', money(t.cost)], ['Already sold, traded, gifted, opened or moved', money(sold)], ['= Total spent', money(t.spent), 'total'], ['Lots that came out of an opening or a trade count at the cost they carried in', '']];
-    const g = {}; for (const it of items) { const k = sourceOf(it); const G = g[k] ||= {units: 0, spent: 0, lots: 0}; G.units += it.qty; G.spent += it.qty * (it.unitCost || 0); G.lots++; }
+    const opened = items.filter(it => it.fromOpenOf), openedCost = opened.reduce((a, it) => a + it.qty * (it.unitCost || 0), 0);
+    lines = [['For every lot ever bought in this book: quantity bought × unit cost', ''], ['Cost of units still on hand', money(t.cost)], ['+ cost of units already sold, traded, gifted, opened or moved', money(sold)], ['− lots that came out of an opening (their cost is the box, already counted)', money(openedCost)], ['= Total spent', money(t.spent), 'total'], ['Cost basis differs from spent by exactly what has left stock, once opened contents are not double counted', '']];
+    const g = {}; for (const it of items) { if (it.fromOpenOf) continue; const k = sourceOf(it); const G = g[k] ||= {units: 0, spent: 0, lots: 0}; G.units += it.qty; G.spent += it.qty * (it.unitCost || 0); G.lots++; }
     table = mathTable(['Source', 'Lots#', 'Units#', 'Spent#'], Object.entries(g).sort((a, b) => b[1].spent - a[1].spent).map(([k, v]) => [esc(k), v.lots, v.units, money(v.spent)]));
   } else if (key === 'realized') {
     title = 'Realized profit';
@@ -1234,7 +1244,7 @@ function groupTable(items, keyFn, label) {
   for (const it of items) {
     const k = keyFn(it) ?? '—', rem = onHand(it), uc = it.unitCost || 0, uv = unitValue(it);
     const G = g[k] ||= {units: 0, cost: 0, value: 0, spent: 0, unpriced: 0, realized: 0, products: 0};
-    G.units += rem; G.cost += rem * uc; G.spent += it.qty * uc; if (rem > 0) G.products++;
+    G.units += rem; G.cost += rem * uc; if (!it.fromOpenOf) G.spent += it.qty * uc; if (rem > 0) G.products++;
     if (uv == null) G.unpriced += rem * uc; else G.value += rem * uv;
     for (const m of (it.moves || [])) if (m.type !== 'opened') G.realized += m.type === 'sold' ? m.qty * m.unitPrice - (m.fee || 0) - moveCost(it, m) : (m.value || 0) - moveCost(it, m);
   }
