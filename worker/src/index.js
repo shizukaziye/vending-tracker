@@ -77,16 +77,46 @@ export default {
     const origin = req.headers.get('Origin');
     const cors = {
       'Access-Control-Allow-Origin': origin || '*',
-      'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization',
       'Access-Control-Max-Age': '86400',
       'Vary': 'Origin',
     };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
+    // shared pages are public: GET /s/<id> serves a snapshot the owner published with PUT /share
+    if (url.pathname.startsWith('/s/') && req.method === 'GET') {
+      const id = url.pathname.slice(3).replace(/[^a-z0-9]/gi, '');
+      const html = id && (await env.DATA.get('share:' + id));
+      if (!html) return new Response('This shared page does not exist or was removed.', { status: 404, headers: { 'Content-Type': 'text/plain' } });
+      return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=120', 'X-Robots-Tag': 'noindex' } });
+    }
+
     const auth = req.headers.get('Authorization') || '';
     if (!env.AUTH_TOKEN || auth !== `Bearer ${env.AUTH_TOKEN}`) {
       return json({ error: 'unauthorized' }, 401, cors);
+    }
+
+    // share: PUT /share (body = html, ?id= to overwrite an existing link, ?title= for the index) -> {id, url}; GET /shares lists them; DELETE /share?id= removes one
+    if (url.pathname === '/share' && req.method === 'PUT') {
+      const html = await req.text();
+      if (!html || html.length > 20_000_000) return json({ error: 'html required (max 20MB)' }, 400, cors);
+      const index = (await env.DATA.get('share:index', 'json')) || [];
+      let id = (url.searchParams.get('id') || '').replace(/[^a-z0-9]/gi, '');
+      if (!id || !index.some((s) => s.id === id)) id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+      await env.DATA.put('share:' + id, html);
+      const entry = { id, title: (url.searchParams.get('title') || 'Shared page').slice(0, 80), at: new Date().toISOString(), bytes: html.length };
+      const next = [entry, ...index.filter((s) => s.id !== id)].slice(0, 50);
+      await env.DATA.put('share:index', JSON.stringify(next));
+      return json({ ok: true, id, url: `${url.origin}/s/${id}`, shares: next }, 200, cors);
+    }
+    if (url.pathname === '/shares' && req.method === 'GET') return json({ shares: (await env.DATA.get('share:index', 'json')) || [] }, 200, cors);
+    if (url.pathname === '/share' && req.method === 'DELETE') {
+      const id = (url.searchParams.get('id') || '').replace(/[^a-z0-9]/gi, '');
+      await env.DATA.delete('share:' + id);
+      const next = ((await env.DATA.get('share:index', 'json')) || []).filter((s) => s.id !== id);
+      await env.DATA.put('share:index', JSON.stringify(next));
+      return json({ ok: true, shares: next }, 200, cors);
     }
 
     if (url.pathname === '/market/search' && req.method === 'GET') {

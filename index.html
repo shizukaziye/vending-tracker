@@ -257,6 +257,7 @@ footer .note{font-size:12px;color:var(--dim)}
     <div class="spacer"></div>
     <span id="syncchip" class="chip">not connected</span>
     <button class="small" id="btn_prices" onclick="refreshPrices()" title="Pull fresh TCGplayer market prices for every matched product">↻ Prices</button>
+    <button class="small" onclick="openShare()" title="Publish a read-only page of your cards and get a link">↗ Share</button>
     <button class="small" onclick="openSettings()">⚙︎ Settings</button>
   </header>
 
@@ -432,6 +433,24 @@ footer .note{font-size:12px;color:var(--dim)}
   <button data-v="txn" onclick="setView('txn')"><span>💵</span>Money</button><button data-v="stats" onclick="setView('stats')"><span>📊</span>Overview</button>
   <button onclick="document.getElementById('facets').classList.toggle('open')"><span>⚙︎</span>Filters</button>
 </nav>
+<dialog id="sharedlg" class="wide">
+  <h3>Share a page of your cards</h3>
+  <p class="sub" style="margin:0 0 10px">Builds a read-only page from what is on hand right now (nothing in transit), publishes it through your Worker, and gives you a link. Prices are today's; publish again to refresh a link.</p>
+  <div class="dgrid">
+    <div class="wide"><label>Page title</label><input id="sh_title" value="Shizu's Binder"></div>
+    <div class="wide" style="display:flex;flex-wrap:wrap;gap:14px">
+      <label class="chk"><input type="checkbox" id="sh_personal" checked>Personal collection</label>
+      <label class="chk"><input type="checkbox" id="sh_business" checked>Business stock</label>
+      <label class="chk"><input type="checkbox" id="sh_decks">Decks</label>
+      <label class="chk"><input type="checkbox" id="sh_cost">Show what I paid</label>
+    </div>
+    <div class="wide"><label>Update an existing link instead of making a new one</label><select id="sh_existing"><option value="">New link</option></select></div>
+    <div class="wide" id="sh_result" style="display:none"><label>Link</label><div style="display:flex;gap:8px;align-items:center"><input id="sh_url" readonly style="flex:1"><button class="small" onclick="navigator.clipboard.writeText($('sh_url').value).then(() => setChip('ok', 'link copied'))">Copy</button><a id="sh_open" target="_blank" rel="noopener" class="small" style="color:var(--accent)">Open</a></div></div>
+    <div class="wide" id="sh_list"></div>
+  </div>
+  <div class="dfoot"><span class="sub" id="sh_status"></span><span class="spacer"></span><button onclick="document.getElementById('sharedlg').close()">Close</button><button class="primary" id="sh_go" onclick="publishShare()">Publish link</button></div>
+</dialog>
+
 <dialog id="helpdlg">
   <h3>Keyboard shortcuts</h3>
   <div class="helpgrid"><kbd>/</kbd><span>Focus the Add box</span><kbd>1</kbd>–<kbd>6</kbd><span>Cards · List · Sold · Traded · Transactions · Overview</span><kbd>f</kbd><span>Show / hide the filters</span><kbd>r</kbd><span>Open the review queue</span><kbd>Esc</kbd><span>Close menus and dialogs</span><kbd>?</kbd><span>This list</span></div>
@@ -485,6 +504,109 @@ const gclass = g => 'g-' + (g || 'other').toLowerCase().replace(/[^a-z]/g, '');
 const SEALED = new Set(['Booster Box', 'Elite Trainer Box', 'Booster Bundle', 'Blister / 3-pack', 'Single Pack', 'Tin', 'Collection Box', 'Deck', 'Case']);
 const PROMO_GROUPS = ['Riftbound Organized Play Promotional Cards', 'Riftbound Promotional Cards', 'Riftbound Judge Promotional Cards'];
 const jsArg = v => JSON.stringify(String(v)).replace(/"/g, '&quot;');
+
+// ---------- share: build a read-only page and publish it through the Worker ----------
+const SHARE_GAME_LABEL = {Pokemon: 'Pokémon', Riftbound: 'Riftbound', Magic: 'Magic: The Gathering', 'Weiss Schwarz': 'Weiss Schwarz', 'One Piece': 'One Piece'};
+function shareParts(it) {
+  const m = it.market || {}; let name = it.product, set = m.setName || '', num = m.number || '';
+  const mm = name.match(/^(.*) \((.+?) ([^ ()]+)\)$/); if (mm && (mm[2] === set || !set)) { name = mm[1]; set = set || mm[2]; num = num || mm[3]; }
+  if (/master set/i.test(it.product)) { name = it.product.replace(/ \(.*$/, ''); set = it.product.match(/\((.*)\)/)?.[1] || ''; num = `${it.attrs?.cards || ''} cards`; }
+  const lang = it.attrs?.language && it.attrs.language !== 'English' ? it.attrs.language : (/Chinese/.test(it.product) ? 'Chinese' : '');
+  name = name.replace(/ \((Japanese|Chinese)\)/, '').replace(/^(.*?) \(Chinese Lunar New Year promo\)/, '$1 · Lunar New Year promo')
+    .replace(/^Kaisa Legend \(ON\)$/, "Kai'Sa, Daughter of the Void").replace(/^Miss Fortune Legend \(ON\)$/, 'Miss Fortune, Bounty Hunter').replace(/^Plundering Poro \(ON\)$/, 'Plundering Poro').replace(/^Kayle VEN \(ON\)$/, 'Kayle, Justified').replace(/^Morgana VEN \(ON\)$/, 'Morgana, Vindictive').replace(/^Ahri \(CR Unit\)$/, 'Ahri, Inquisitive').replace(/^Lux \(Cr Unit\)$/, 'Lux, Crownguard');
+  const tags = []; if (lang) tags.push(lang); if (/PSA 10|BGS|CGC/.test(it.attrs?.condition || '')) tags.push(it.attrs.condition); if (/Overnumbered|\(ON\)/.test(it.product) || /^(Kai'Sa, Daughter|Miss Fortune, Bounty|Plundering Poro$|Kayle, Justified|Morgana, Vindictive)/.test(name)) tags.push('Overnumbered'); if (/Signature/.test(it.product)) tags.push('Signature'); if (/Alternate Art|\(Alt /.test(it.product)) tags.push('Alt art'); if (/promo/i.test(it.product) && !/master set/i.test(it.product)) tags.push('Promo'); if (/SAR|Special Art Rare/.test(it.product) || /Special Art Rare/.test(m.rarity || '')) tags.push('SAR'); if (/\(CR Unit\)|\(Cr Unit\)|SP\d\/006/.test(it.product) || /^(Ahri, Inquisitive|Lux, Crownguard)$/.test(name) && /Cr Unit|CR Unit|SP/.test(it.product)) tags.push('SP');
+  if (facetsOf(it).type === 'Sealed') tags.push('Sealed');
+  return {name, set: set || m.setName || '', num, tags: [...new Set(tags)]};
+}
+function shareHtml({title, books, showCost}) {
+  const money = n => '$' + (+n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}), money0 = n => '$' + Math.round(+n).toLocaleString('en-US');
+  const date = today(), val = it => onHand(it) * (marketPrice(it) || 0);
+  const pick = book => DOC.items.filter(it => bookOf(it) === book && onHand(it) > 0 && statusOf(it) !== 'Incoming');
+  const order = ['Pokemon', 'Riftbound', 'Magic', 'Weiss Schwarz', 'One Piece'];
+  const gameOrder = gm => order.concat(Object.keys(gm).filter(g => !order.includes(g))).filter(g => gm[g]);
+  const img = it => it.market?.image || (it.market?.productId ? `https://tcgplayer-cdn.tcgplayer.com/product/${it.market.productId}_200w.jpg` : '');
+  const card = it => { const p = shareParts(it), n = onHand(it), src = img(it); return `<li class="card"><div class="art">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<div class=noart>no image</div>'">` : '<div class="noart">no image</div>'}${n > 1 ? `<span class="qty">×${n}</span>` : ''}</div>
+    <div class="meta"><div class="name">${esc(p.name)}</div><div class="set">${esc(p.set)}${p.num ? ` <span class="num">#${esc(p.num)}</span>` : ''}</div>${p.tags.length ? `<div class="tags">${p.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}</div>
+    <div class="price"><span class="each">${money(marketPrice(it) || 0)}${n > 1 ? ' each' : ''}</span>${n > 1 ? `<span class="line">${money(val(it))}</span>` : showCost ? `<span class="line">paid ${money(it.unitCost || 0)}</span>` : ''}</div>${showCost && n > 1 ? `<div class="price" style="padding-top:0"><span class="line">paid ${money((it.unitCost || 0) * n)}</span></div>` : ''}</li>`; };
+  const feature = it => { const p = shareParts(it), src = img(it); return `<li class="feature"><div class="art">${src ? `<img src="${esc(src)}" alt="">` : ''}</div><div class="meta"><div class="eyebrow">Master set</div><div class="name">${esc(p.name)}</div><div class="set">${esc(p.set)} · ${esc(p.num)}${it.attrs?.reverseHolos ? ` + ${it.attrs.reverseHolos} reverse holos` : ''}</div><div class="set">${esc((it.notes || '').split(' · ')[0])}</div></div><div class="price"><span class="each">${money(marketPrice(it) || 0)}</span><span class="line">summed at market</span></div></li>`; };
+  const partHtml = (book, pre, heading, sub) => { const L = pick(book); if (!L.length) return {nav: '', html: '', units: 0, total: 0}; const gm = {}; for (const it of L) (gm[it.game || 'Other'] ||= []).push(it);
+    const sections = gameOrder(gm).map(g => { const G = gm[g].sort((a, b) => val(b) - val(a)), feats = G.filter(i => /master set/i.test(i.product)), rest = G.filter(i => !/master set/i.test(i.product));
+      return `<section id="${pre}${g.toLowerCase().replace(/\s+/g, '-')}"><header class="sh"><h2>${esc(SHARE_GAME_LABEL[g] || g)}</h2><div class="stats"><span>${G.reduce((a, i) => a + onHand(i), 0)} cards</span><span class="v">${money0(G.reduce((a, i) => a + val(i), 0))}</span></div></header>${feats.length ? `<ul class="features">${feats.map(feature).join('')}</ul>` : ''}<ul class="grid">${rest.map(card).join('')}</ul></section>`; }).join('');
+    const nav = `<span class="navl">${esc(heading)}</span>` + gameOrder(gm).map(g => `<a href="#${pre}${g.toLowerCase().replace(/\s+/g, '-')}">${esc(SHARE_GAME_LABEL[g] || g)} · ${money0(gm[g].reduce((a, i) => a + val(i), 0))}</a>`).join('');
+    return {nav, html: `<div class="part"><h2 class="parth">${esc(heading)}</h2><p class="sub">${esc(sub)}</p></div>${sections}`, units: L.reduce((a, i) => a + onHand(i), 0), total: L.reduce((a, i) => a + val(i), 0)}; };
+  const parts = [];
+  if (books.personal) parts.push({...partHtml('personal', '', 'Collection', 'Kept, not for sale.'), label: 'collection'});
+  if (books.business) parts.push({...partHtml('business', 'biz-', 'Business stock', 'On hand now. Orders still in transit are left off.'), label: 'business'});
+  if (books.decks) parts.push({...partHtml('decks', 'deck-', 'Decks', 'Cards currently in decks.'), label: 'decks'});
+  const totals = parts.filter(p => p.units).map(p => `<div><b>${p.units}</b><span>${p.label} cards</span></div><div><b>${money0(p.total)}</b><span>${p.label} value</span></div>`).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#F2F4F7;--surface:#FFFFFF;--ink:#171F28;--muted:#5E6B7A;--line:#D7DDE5;--accent:#0E7C86;--accent-ink:#FFFFFF;--tag:#E3EEF0;--tag-ink:#0B5F67;--shadow:0 1px 2px rgba(23,31,40,.06),0 8px 24px rgba(23,31,40,.06)}
+@media (prefers-color-scheme: dark){:root{--bg:#0F151A;--surface:#161E25;--ink:#E7ECF1;--muted:#96A3B1;--line:#26313B;--accent:#3EB7C0;--accent-ink:#0B1215;--tag:#173137;--tag-ink:#8FD9DF;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;padding:0 20px 64px}
+.wrap{max-width:1120px;margin:0 auto}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 32px;padding:40px 0 20px;border-bottom:2px solid var(--ink)}
+h1{font:800 clamp(34px,5vw,52px)/1 "Bricolage Grotesque","IBM Plex Sans",sans-serif;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:8px 0 0;max-width:60ch}
+.totals{display:flex;flex-wrap:wrap;gap:20px 28px;font-variant-numeric:tabular-nums}.totals div{display:flex;flex-direction:column}.totals b{font:700 26px/1.1 "Bricolage Grotesque",sans-serif;letter-spacing:-.01em}.totals span{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px}
+nav{display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 8px}nav a{color:var(--ink);text-decoration:none;font-weight:500;font-size:13.5px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}nav a:hover,nav a:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+.navl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);align-self:center;padding:0 4px 0 8px}
+section{padding-top:36px}.sh{display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:18px}
+h2{font:700 26px/1.1 "Bricolage Grotesque",sans-serif;letter-spacing:-.015em;margin:0}.stats{display:flex;gap:14px;font-variant-numeric:tabular-nums;color:var(--muted);font-size:13.5px}.stats .v{color:var(--ink);font:500 15px "IBM Plex Mono",monospace}
+ul{list-style:none;margin:0;padding:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.art{position:relative;background:var(--bg);aspect-ratio:5/7;display:flex;align-items:center;justify-content:center;padding:10px}.art img{max-width:100%;max-height:100%;border-radius:6px;display:block}.noart{color:var(--muted);font-size:12px}
+.qty{position:absolute;top:8px;right:8px;background:var(--accent);color:var(--accent-ink);font:600 12px "IBM Plex Mono",monospace;padding:2px 8px;border-radius:999px}
+.meta{padding:10px 12px 4px;flex:1}.name{font-weight:600;line-height:1.25;text-wrap:balance}.set{color:var(--muted);font-size:12.5px;margin-top:3px}.num{font-family:"IBM Plex Mono",monospace}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.tags span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--tag);color:var(--tag-ink);padding:2px 7px;border-radius:4px;font-weight:600}
+.price{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 12px 12px;font-variant-numeric:tabular-nums}.each{font:500 15px "IBM Plex Mono",monospace}.line{font-size:12px;color:var(--muted)}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:16px}
+.feature{display:grid;grid-template-columns:96px 1fr auto;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:14px;box-shadow:var(--shadow)}.feature .art{aspect-ratio:5/7;padding:0;background:transparent}.feature .name{font:700 19px/1.15 "Bricolage Grotesque",sans-serif}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:600;margin-bottom:4px}.feature .price{flex-direction:column;align-items:flex-end;padding:0}.feature .each{font-size:22px;font-weight:500}
+.part{margin-top:56px;padding-top:24px;border-top:2px solid var(--ink)}.parth{font:800 clamp(26px,3.6vw,36px)/1 "Bricolage Grotesque",sans-serif;letter-spacing:-.02em;margin:0}.part .sub{margin-top:6px}
+footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;max-width:70ch}
+@media (max-width:480px){.feature{grid-template-columns:72px 1fr}.feature .price{grid-column:2;align-items:flex-start}.grid{grid-template-columns:repeat(2,1fr);gap:10px}.meta{padding:8px 10px 2px}.price{padding:6px 10px 10px}}
+</style></head><body><div class="wrap">
+<header class="top"><div><h1>${esc(title)}</h1><p class="sub">Itemized, with TCGplayer market prices as of ${date}. A master set is the sum of every card in it.</p></div><div class="totals">${totals}</div></header>
+<nav>${parts.map(p => p.nav).join('')}</nav>
+${parts.map(p => p.html).join('')}
+<footer>Chinese and promo printings without their own listing are priced off the closest English listing. Market values move daily; this page is a snapshot from ${date}.</footer>
+</div></body></html>`;
+}
+let shareList = [];
+async function openShare() {
+  if (!CFG) { openSettings(); return; }
+  $('sh_result').style.display = 'none'; $('sh_status').textContent = ''; $('sh_list').innerHTML = '';
+  $('sharedlg').showModal();
+  try { const r = await apiFetch('GET', null, '/shares'); if (r.ok) { shareList = (await r.json()).shares || []; renderShareList(); } } catch {}
+}
+function renderShareList() {
+  $('sh_existing').innerHTML = '<option value="">New link</option>' + shareList.map(x => `<option value="${esc(x.id)}">${esc(x.title)} · ${esc(x.at.slice(0, 10))}</option>`).join('');
+  $('sh_list').innerHTML = shareList.length ? `<label>Published links</label>${shareList.map(x => `<div class="row"><span><a href="${esc(CFG.api)}/s/${esc(x.id)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(x.title)}</a> <span class="dim">· ${esc(x.at.slice(0, 10))}</span></span><span><button class="small" onclick="navigator.clipboard.writeText(CFG.api + '/s/${esc(x.id)}').then(() => setChip('ok', 'link copied'))">Copy</button> <button class="small danger" onclick="removeShare('${esc(x.id)}')">Remove</button></span></div>`).join('')}` : '';
+}
+async function publishShare() {
+  const books = {personal: $('sh_personal').checked, business: $('sh_business').checked, decks: $('sh_decks').checked};
+  if (!books.personal && !books.business && !books.decks) { alert('Pick at least one book.'); return; }
+  const title = $('sh_title').value.trim() || 'Shared cards', id = $('sh_existing').value;
+  $('sh_go').disabled = true; $('sh_status').textContent = 'Building…';
+  try {
+    const html = shareHtml({title, books, showCost: $('sh_cost').checked});
+    $('sh_status').textContent = `Publishing ${(html.length / 1024).toFixed(0)} KB…`;
+    const r = await fetch(`${CFG.api}/share?title=${encodeURIComponent(title)}${id ? '&id=' + encodeURIComponent(id) : ''}`, {method: 'PUT', headers: {'Authorization': 'Bearer ' + CFG.token, 'Content-Type': 'text/html'}, body: html});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); shareList = j.shares || shareList; renderShareList(); $('sh_existing').value = j.id;
+    $('sh_url').value = j.url; $('sh_open').href = j.url; $('sh_result').style.display = ''; $('sh_status').textContent = id ? 'Link updated.' : 'Published.';
+    try { await navigator.clipboard.writeText(j.url); setChip('ok', 'share link copied'); } catch {}
+  } catch (e) { $('sh_status').textContent = 'Failed: ' + e.message; }
+  $('sh_go').disabled = false;
+}
+async function removeShare(id) {
+  if (!confirm('Remove this shared page? Anyone with the link loses access.')) return;
+  const r = await fetch(`${CFG.api}/share?id=${encodeURIComponent(id)}`, {method: 'DELETE', headers: {'Authorization': 'Bearer ' + CFG.token}});
+  if (r.ok) { shareList = (await r.json()).shares || []; renderShareList(); }
+}
 
 // ---------- config + sync ----------
 let CFG = null;

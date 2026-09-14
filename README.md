@@ -94,9 +94,14 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     (every action per day with out, in, net profit, Txn P&L and opening P&L).
   - **Stats** per book: value at the set share of market, on-hand cost, unrealized gain, realized
     profit split into sales and trades, and breakdowns by location, game and channel.
+- **Share**: the ↗ Share button builds a read-only page of what is on hand (pick any of the three
+  books, optionally with what you paid), publishes it through the Worker and copies the link. Links
+  are listed in the dialog; publish again to an existing link to refresh it, or remove it.
 - **API** (`worker/`): a Cloudflare Worker that stores one JSON document in KV behind a
   bearer token, and proxies TCGplayer search and price lookups (`/market/search`,
-  `/market/price`) since browsers cannot call TCGplayer directly.
+  `/market/price`) since browsers cannot call TCGplayer directly. Shared pages: `PUT /share`
+  (html body, `?id=` to overwrite, `?title=`), `GET /shares`, `DELETE /share?id=` behind the
+  token; `GET /s/<id>` serves a published page to anyone with the link.
 - **Target orders** flow in automatically from `~/target-orders` (`vending_sync.py`): one
   business item per order line, tax spread into unit cost, location = the address group,
   payer = the employee, tags `target` plus `incoming` or `delivered`. Canceled orders are
