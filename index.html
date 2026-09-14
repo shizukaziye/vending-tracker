@@ -253,7 +253,7 @@ footer .note{font-size:12px;color:var(--dim)}
 <div class="wrap">
   <header>
     <h1>Vending <span class="accent">Tracker</span></h1>
-    <div class="seg" id="bookseg"><button id="book_business" class="on" onclick="setBook('business')">Business</button><button id="book_personal" onclick="setBook('personal')">Personal collection</button></div>
+    <div class="seg" id="bookseg"><button id="book_business" class="on" onclick="setBook('business')">Business</button><button id="book_personal" onclick="setBook('personal')">Personal collection</button><button id="book_decks" onclick="setBook('decks')">Decks</button></div>
     <div class="spacer"></div>
     <span id="syncchip" class="chip">not connected</span>
     <button class="small" id="btn_prices" onclick="refreshPrices()" title="Pull fresh TCGplayer market prices for every matched product">↻ Prices</button>
@@ -381,9 +381,10 @@ footer .note{font-size:12px;color:var(--dim)}
 </dialog>
 
 <dialog id="movedlg">
-  <h3 id="movetitle">Move to personal collection</h3>
+  <h3 id="movetitle">Move to another book</h3>
   <p class="sub" id="movehint" style="margin:0 0 10px"></p>
   <div class="dgrid">
+    <div><label>To</label><select id="b_to" onchange="bookMoveHint()"></select></div>
     <div><label>Quantity</label><input id="b_qty" type="number" min="1" step="1" value="1"></div>
     <div><label>Price per unit ($)</label><input id="b_price" type="number" min="0" step="0.01"></div>
     <div><label>Date</label><input id="b_date" type="date"></div>
@@ -560,10 +561,12 @@ window.addEventListener('beforeunload', e => { if (dirty || saving) { e.preventD
 
 // ---------- books ----------
 let BOOK = 'business';
-const bookOf = it => it.book === 'personal' ? 'personal' : 'business';
+const BOOKS = ['business', 'personal', 'decks'];
+const bookOf = it => BOOKS.includes(it.book) ? it.book : 'business';
 const inBook = it => bookOf(it) === BOOK;
-const BOOK_NAMES = {business: 'Business', personal: 'Personal collection'};
-function setBook(b) { BOOK = b; $('book_business').classList.toggle('on', b === 'business'); $('book_personal').classList.toggle('on', b === 'personal'); renderAll(); }
+const BOOK_NAMES = {business: 'Business', personal: 'Personal collection', decks: 'Decks'};
+const BOOK_SOURCE = {business: 'Business inventory', personal: 'Personal collection', decks: 'Decks'};  // source written on a lot that came from that book
+function setBook(b) { BOOK = b; for (const k of BOOKS) $('book_' + k).classList.toggle('on', b === k); renderAll(); }
 
 // ---------- derived helpers ----------
 const movedQty = it => (it.moves || []).reduce((a, m) => a + m.qty, 0);
@@ -638,7 +641,7 @@ function sourceOf(it) {
   if (/bandai/i.test(s)) return 'Premium Bandai';
   if (/^trade/i.test(s)) return 'Trade';
   if (/^opened from/i.test(s)) return 'Opened';
-  if (/business inventory|personal collection/i.test(s)) return 'Transfer';
+  if (/^business inventory$|^personal collection$|^decks$/i.test(s)) return 'Transfer';
   return s || '—';
 }
 function marketState(it) { const m = it.market; if (!m || m.price == null) return 'No price'; if (m.source === 'manual') return 'Manual'; if (m.auto) return 'Needs review'; return 'Matched'; }
@@ -889,7 +892,7 @@ function explainTile(key) {
   } else if (key === 'realized') {
     title = 'Realized profit';
     lines = [['Sales revenue (units × price, gifts at $0, moves to the collection at their price)', money(t.revenue)], ['− cost of the units sold', money(t.costSold)], ['− fees', money(t.fees)], ['= Profit on sales', sg(t.saleProfit)], ['Value received in trades', money(t.tradeVal)], ['− cost of the units traded away', money(t.tradeCost)], ['= Gain on trades', sg(t.tradeGain)], ['= Realized profit', sg(t.realized), 'total'], ['Openings are not realized: their gain sits in the new lots', '']];
-    const rows = []; for (const it of items) for (const m of (it.moves || [])) if (m.type !== 'opened') rows.push({date: m.date || '', k: displayName(it), type: m.type === 'sold' ? (m.gift ? 'gift' : /personal collection|^business$/i.test(m.channel || '') ? 'transfer' : 'sale') : 'trade', qty: m.qty, inn: moveIn(m), cost: moveCost(it, m), p: moveIn(m) - moveCost(it, m)});
+    const rows = []; for (const it of items) for (const m of (it.moves || [])) if (m.type !== 'opened') rows.push({date: m.date || '', k: displayName(it), type: m.type === 'sold' ? (m.gift ? 'gift' : /^personal collection$|^business$|^decks$/i.test(m.channel || '') ? 'transfer' : 'sale') : 'trade', qty: m.qty, inn: moveIn(m), cost: moveCost(it, m), p: moveIn(m) - moveCost(it, m)});
     rows.sort((a, b) => b.date.localeCompare(a.date)); const [rs, more] = topN(rows, 40);
     table = mathTable(['Date', 'Product', 'Type', 'Units#', 'In#', 'Cost#', 'Profit#'], rs.map(g => [esc(g.date), esc(g.k), g.type, g.qty, money(g.inn), money(g.cost), sg(g.p)]), more);
   } else if (key === 'return') {
@@ -1004,7 +1007,7 @@ function takeFifo(ref, qty) {
 }
 function openMenu(ev, ref) {
   ev.stopPropagation();
-  const lots = lotsFor(ref), rem = refOnHand(ref), other = BOOK === 'business' ? 'personal collection' : 'business', r = jsArg(ref);
+  const lots = lotsFor(ref), rem = refOnHand(ref), other = 'another book…', r = jsArg(ref);
   const single = lots.length === 1;
   const menu = $('menu');
   menu.innerHTML = [
@@ -1114,7 +1117,7 @@ function renderList() {
       <td class="num hidemob">${gain == null ? '<span class="dim">—</span>' : `<span class="${gain >= 0 ? 'good' : 'bad'}">${money(gain)}</span>`}</td>
       <td>${esc(it.location || '')}</td>
       <td class="hidemob"><span class="sub">${esc(it.purchaseDate || '')}${it.payment ? '<br>' + esc(it.payment) : ''}${it.source ? '<br>' + esc(it.source) : ''}</span></td>
-      <td class="actions">${rem > 0 ? `<button class="small primary" onclick="openSale('${it.id}')">Sell</button><button class="small" onclick="openTrade('${it.id}')">Trade</button><button class="small" onclick="openBookMove('${it.id}')">${BOOK === 'business' ? '→ PC' : '→ Biz'}</button>` : ''}<button class="small" onclick="openMenu(event, '${it.id}')">⋮</button></td></tr>`;
+      <td class="actions">${rem > 0 ? `<button class="small primary" onclick="openSale('${it.id}')">Sell</button><button class="small" onclick="openTrade('${it.id}')">Trade</button><button class="small" onclick="openBookMove('${it.id}')">Move…</button>` : ''}<button class="small" onclick="openMenu(event, '${it.id}')">⋮</button></td></tr>`;
   }
   const tg = tVal - tCost;
   h += `<tr><td class="dim">Total (filtered)</td><td></td><td></td><td></td><td></td><td class="num">${anyVal ? money(tVal) : '—'}</td><td class="num hidemob">${anyVal ? `<span class="${tg >= 0 ? 'good' : 'bad'}">${money(tg)}</span>` : '—'}</td><td colspan="3" class="sub">on-hand cost ${money(tCost)}</td></tr>`;
@@ -1189,7 +1192,7 @@ function buildTxns(scope) {
   for (const it of items) {
     const t = it.txn, src = it.source || '';
     const skipAcq = /^trade\b/i.test(src) || /^opened from/i.test(src);  // the trade / opening row is the event
-    const xferIn = /business inventory|personal collection/i.test(src);  // bought from the other book: a purchase here, the sale shows over there
+    const xferIn = /^business inventory$|^personal collection$|^decks$/i.test(src);  // came from another book: a purchase here, the sale shows over there
     if (!skipAcq) {
       if (t && t.id) {
         const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', src: sourceOf(it), who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
@@ -1197,14 +1200,14 @@ function buildTxns(scope) {
         const vn = unitValue(it), vt = unitValueOn(it, g.date); if (vn == null) g.unpriced += it.qty; else { g.valNow += it.qty * vn; g.valThen += it.qty * (vt ?? vn); }
       } else {
         const out = it.qty * (it.unitCost || 0), vn = unitValue(it), vt = unitValueOn(it, it.purchaseDate || '');
-        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: xferIn ? 'transfer' : 'purchase', dir: xferIn ? 'in' : undefined, src: sourceOf(it), who: xferIn ? (/personal/i.test(src) ? 'Personal collection' : 'Business') : src || '—', vendor: '', ref: xferIn ? displayName(it) : '', lots: [it], units: it.qty, cost: out, out, payer: it.payment || '', currency: 'USD',
+        rows.push({key: 'i:' + it.id, date: it.purchaseDate || '', type: xferIn ? 'transfer' : 'purchase', dir: xferIn ? 'in' : undefined, src: sourceOf(it), who: xferIn ? (/personal/i.test(src) ? 'Personal collection' : /decks/i.test(src) ? 'Decks' : 'Business') : src || '—', vendor: '', ref: xferIn ? displayName(it) : '', lots: [it], units: it.qty, cost: out, out, payer: it.payment || '', currency: 'USD',
           ...(vn == null ? {} : {profit: it.qty * vn - out, pnl: it.qty * (vt ?? vn) - out, valNow: it.qty * vn, valThen: it.qty * (vt ?? vn)})});
       }
     }
     for (const m of (it.moves || [])) {
       const cost = moveCost(it, m);
       if (m.type === 'sold') {
-        const transfer = /personal collection|^business$/i.test(m.channel || '');
+        const transfer = /^personal collection$|^business$|^decks$/i.test(m.channel || '');
         rows.push({key: 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], units: m.qty, cost, inn: moveIn(m), fee: m.fee || 0, profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), note: m.note});
       } else if (m.type === 'opened') {  // one row per opening, even when it drew from several lots
         const outs = openOutputs(m), gk = 'o:' + (outs[0]?.fromOpenOf?.moveIds?.[0] || m.id);
@@ -1511,26 +1514,34 @@ function delMove(itemId, moveId) { if (!confirm('Delete this record? The units g
 // ---------- move between books ----------
 let bookMoveRef = null;
 function openBookMove(ref) {
-  bookMoveRef = ref; const lots = liveLots(ref); if (!lots.length) return; const it = lots[0], to = bookOf(it) === 'business' ? 'personal' : 'business', mp = marketPrice(it), rem = refOnHand(ref);
-  $('movetitle').textContent = to === 'personal' ? `Move to personal collection: ${refName(ref)}` : `Move back to business: ${refName(ref)}`;
-  $('movehint').textContent = (to === 'personal' ? `Recorded as a sale from the business to you at ${valuePct()}% of market. The item appears in your collection at that cost.` : `Recorded as a sale from your collection to the business at ${valuePct()}% of market.`) + (lots.length > 1 ? ' Units come from the oldest lot first.' : '');
-  $('b_qty').value = 1; $('b_qty').max = rem; $('b_price').value = mp != null ? (mp * valueRate()).toFixed(2) : ''; $('b_date').value = today(); $('b_note').value = '';
-  const other = DOC.items.filter(x => bookOf(x) === to && x.location);
-  $('b_location').value = other.length ? other[other.length - 1].location : (to === 'personal' ? 'Home' : it.location || '');
+  bookMoveRef = ref; const lots = liveLots(ref); if (!lots.length) return; const it = lots[0], from = bookOf(it), mp = marketPrice(it), rem = refOnHand(ref);
+  $('b_to').innerHTML = BOOKS.filter(b => b !== from).map(b => `<option value="${b}">${BOOK_NAMES[b]}</option>`).join('');
+  $('movetitle').textContent = `Move ${refName(ref)} from ${BOOK_NAMES[from]}`;
+  $('b_qty').value = 1; $('b_qty').max = rem; $('b_date').value = today(); $('b_note').value = '';
+  bookMoveHint();
   $('movedlg').showModal();
 }
+function bookMoveHint() {
+  const lots = liveLots(bookMoveRef); if (!lots.length) return; const it = lots[0], from = bookOf(it), to = $('b_to').value, mp = marketPrice(it);
+  const atCost = to === 'decks' || from === 'decks';  // decks are not a sale: the lot keeps its cost
+  $('b_price').value = atCost ? (it.unitCost || 0).toFixed(2) : (mp != null ? (mp * valueRate()).toFixed(2) : '');
+  $('movehint').textContent = (atCost ? `Recorded as a move at cost, no profit or loss. The item appears in ${BOOK_NAMES[to]} at that cost.` : `Recorded as a sale from ${BOOK_NAMES[from]} to ${BOOK_NAMES[to]} at ${valuePct()}% of market. The item appears there at that cost.`) + (lots.length > 1 ? ' Units come from the oldest lot first.' : '');
+  const other = DOC.items.filter(x => bookOf(x) === to && x.location);
+  $('b_location').value = other.length ? other[other.length - 1].location : (to === 'business' ? it.location || 'Home' : 'Home');
+}
 function submitBookMove() {
-  const lots = liveLots(bookMoveRef), it = lots[0], to = bookOf(it) === 'business' ? 'personal' : 'business', rem = refOnHand(bookMoveRef);
+  const lots = liveLots(bookMoveRef), it = lots[0], from = bookOf(it), to = $('b_to').value, rem = refOnHand(bookMoveRef);
+  if (!BOOKS.includes(to) || to === from) { alert('Pick a book to move to.'); return; }
   const qty = Math.floor(+$('b_qty').value || 0), price = +$('b_price').value;
   if (qty < 1 || qty > rem) { alert(`Quantity must be 1–${rem}.`); return; }
   if (!(price >= 0) || $('b_price').value === '') { alert(marketPrice(it) == null ? 'No market price yet — set one first, or type a price.' : 'Enter a price.'); return; }
   const date = $('b_date').value || today(), note = $('b_note').value.trim(), location = $('b_location').value.trim();
   const twin = {id: uid(), book: to, moves: [], createdAt: new Date().toISOString(), game: it.game, product: it.product, category: it.category, qty, unitCost: price,
-    purchaseDate: date, payment: to === 'personal' ? 'Personal' : 'Business', source: to === 'personal' ? 'Business inventory' : 'Personal collection',
+    purchaseDate: date, payment: to === 'personal' ? 'Personal' : to === 'decks' ? 'Decks' : 'Business', source: BOOK_SOURCE[from],
     location, tags: (it.tags || []).filter(t => !['incoming', 'delivered', 'target', 'cardmarket', 'bandai'].includes(t)),
     notes: note || `From ${BOOK_NAMES[bookOf(it)]} · ${it.product}`, market: it.market ? {...it.market} : undefined, attrs: {...(it.attrs || {})}, fromItemId: it.id};
   DOC.items.push(twin);
-  for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: to === 'personal' ? 'Personal collection' : 'Business', note: note || (to === 'personal' ? 'Moved to personal collection' : 'Moved back to business'), twinItemId: twin.id, valueAt: val2(unitValue(lot))});
+  for (const [lot, n] of takeFifo(bookMoveRef, qty)) (lot.moves ||= []).push({id: uid(), type: 'sold', qty: n, unitPrice: price, date, fee: 0, channel: BOOK_SOURCE[to] === 'Business inventory' ? 'Business' : BOOK_SOURCE[to], note: note || `Moved to ${BOOK_NAMES[to].toLowerCase()}`, twinItemId: twin.id, valueAt: val2(unitValue(lot))});
   $('movedlg').close(); markDirty();
 }
 

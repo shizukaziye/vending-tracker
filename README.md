@@ -50,10 +50,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     per product per day; changes and movers come from that. A lot matched to several TCGplayer
   products at once (a promo set, `market.productIds`) is priced as the sum of its parts. A fixed
   `market.plus` (say, a master set's reverse holos) is added on top of that sum.
-  - **Two books.** Business is the primary inventory. Personal collection is kept apart.
-    Moving something to the collection ("→ PC") books a sale from the business at the
-    valuation price and creates the twin item in the personal book at that cost. "→ Biz"
-    does the reverse.
+  - **Three books.** Business is the primary inventory. Personal collection and Decks are kept
+    apart. "Move…" on a product picks a destination book: business ↔ collection moves are booked
+    as a sale at the valuation price with a twin lot in the other book at that cost; anything
+    into or out of Decks moves at cost, no profit or loss. Each book has its own ledger and stats.
   - **Sell** records units, price, channel and fees. Tick **Gift** for something given away: the
     price is 0 and the ledger and Sold tab flag it as a gift.
     **Open** (menu, sealed products only) breaks units into what came out: you list the contents
