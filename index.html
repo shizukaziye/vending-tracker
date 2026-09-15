@@ -1098,7 +1098,7 @@ function renderGrid() {
   $('gridwrap').innerHTML = positions.map(p => {
     const it = p.rep, m = p.market || {}, fx = facetsOf(it), src = imgFor(it), ref = jsArg(p.key);
     const line1 = [fx.rarity || (fx.type === 'Sealed' ? fx.category : null), m.number ? '#' + m.number : null].filter(Boolean).join(' • ');
-    const extras = [fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');
+    const extras = [fx.language && fx.language !== 'English' ? fx.language : null, fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');  // language shows on the face whenever it is not English
     return `<div class="card ${gclass(it.game)}" data-pos="${esc(p.key)}">
       ${p.incoming ? `<span class="book">${p.incoming === p.onHand ? 'incoming' : p.incoming + ' incoming'}</span>` : ''}${p.lots.length > 1 ? `<span class="lots" title="${p.lots.length} order lines">${p.lots.length} lots</span>` : ''}${p.review ? `<span class="flag" title="Auto-matched — check the printing, then accept">review <button class="acc" data-accept="${esc(p.key)}" title="This match is right">✓ accept</button></span>` : ''}
       <div class="img" onclick="openDetails(${ref})">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}
