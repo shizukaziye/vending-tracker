@@ -88,6 +88,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     kept out of the cash tiles.
     Filter by type and month; the search box applies too. "Day totals" (on by default) puts a
     subtotal row above each day: what happened, units, out, in, net profit, Txn P&L, opening P&L.
+    Every row also shows its **fair value**: what the units were worth at the valuation share at
+    the time (sales, gifts, trades and transfers when they left; purchases on the day they were
+    bought; openings the contents). Click any row to see every card in it with its image, market
+    price and value.
   - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per
     region, with a row per in-transit destination region and an all-in-transit total; the
     address-level table is further down) and "P&L by day"
