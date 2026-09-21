@@ -1322,15 +1322,17 @@ function showItem(id) { const it = DOC.items.find(x => x.id === id); if (!it) { 
 // ---------- transactions ledger ----------
 const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer', gift: 'Gift', open: 'Opened'};
 function buildTxns(scope) {
-  const items = scope || DOC.items.filter(inBook), rows = [], byTxn = new Map(), byOpen = new Map(), td = today();
+  const items = scope || DOC.items.filter(inBook), rows = [], byTxn = new Map(), byOpen = new Map(), byGroup = new Map(), td = today();
   for (const it of items) {
     const t = it.txn, src = it.source || '';
     const skipAcq = /^trade\b/i.test(src) || /^opened from/i.test(src);  // the trade / opening row is the event
     const xferIn = /^business inventory$|^personal collection$|^decks$/i.test(src);  // came from another book: a purchase here, the sale shows over there
     if (!skipAcq) {
-      if (t && t.id) {
-        const g = byTxn.get(t.id) || {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', src: sourceOf(it), who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd};
-        g.lots.push(it); g.units += it.qty; g.cost += it.qty * (it.unitCost || 0); byTxn.set(t.id, g);
+      if ((t && t.id) || it.group) {
+        const gk = t && t.id ? t.id : 'g:' + it.group;
+        const g = byTxn.get(gk) || (t && t.id ? {key: 'p:' + t.id, date: t.date || it.purchaseDate || '', type: 'purchase', src: sourceOf(it), who: t.counterparty || t.vendor || '—', vendor: t.vendor || '', ref: t.ref || '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: t.payer || it.payment || '', currency: t.currency || 'USD', total: t.total, totalUsd: t.totalUsd}
+          : {key: 'pg:' + it.group, date: it.purchaseDate || '', type: 'purchase', src: sourceOf(it), who: src || '—', vendor: '', ref: '', lots: [], units: 0, cost: 0, out: null, valNow: 0, valThen: 0, unpriced: 0, payer: it.payment || '', currency: 'USD'});
+        g.lots.push(it); g.units += it.qty; g.cost += it.qty * (it.unitCost || 0); byTxn.set(gk, g);
         const vn = unitValue(it), vt = unitValueOn(it, g.date); if (vn == null) g.unpriced += it.qty; else { g.valNow += it.qty * vn; g.valThen += it.qty * (vt ?? vn); }
       } else {
         const out = it.qty * (it.unitCost || 0), vn = unitValue(it), vt = unitValueOn(it, it.purchaseDate || '');
@@ -1342,16 +1344,19 @@ function buildTxns(scope) {
       const cost = moveCost(it, m);
       if (m.type === 'sold') {
         const transfer = /^personal collection$|^business$|^decks$/i.test(m.channel || '');
-        rows.push({key: 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], units: m.qty, cost, inn: moveIn(m), fee: m.fee || 0, profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), fair: moveValue(it, m), note: m.note});
+        const row = {key: m.group ? 'g:' + m.group : 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], lines: [[it, m.qty]], units: m.qty, cost, inn: moveIn(m), fee: m.fee || 0, profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), fair: moveValue(it, m), note: m.note};
+        if (m.group) mergeRow(byGroup, row); else rows.push(row);
       } else if (m.type === 'opened') {  // one row per opening, even when it drew from several lots
         const outs = openOutputs(m), gk = 'o:' + (outs[0]?.fromOpenOf?.moveIds?.[0] || m.id);
         const g = byOpen.get(gk) || {key: gk, date: m.date || '', type: 'open', who: new Set(), box: displayName(it), lots: [], units: 0, cost: 0, val: 0, outVal: 0, stamped: true, outs, note: m.note};
         g.who.add(it.location || '—'); g.lots.push(it); g.units += m.qty; g.cost += cost; g.val += moveValue(it, m); if (m.outValueAt != null) g.outVal += m.outValueAt; else g.stamped = false; byOpen.set(gk, g);
       } else {
-        rows.push({key: 'm:' + m.id, date: m.date || '', type: 'trade', who: m.counterparty || '—', ref: `${displayName(it)}${m.received ? ' → ' + m.received : ''}`, lots: [it], units: m.qty, cost, inn: moveIn(m), profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), fair: moveValue(it, m), note: m.note});
+        const row = {key: m.group ? 'g:' + m.group : 'm:' + m.id, date: m.date || '', type: 'trade', who: m.counterparty || '—', ref: `${displayName(it)}${m.received ? ' → ' + m.received : ''}`, received: m.received || '', receivedIds: m.receivedIds || [], lots: [it], lines: [[it, m.qty]], units: m.qty, cost, inn: moveIn(m), profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), fair: moveValue(it, m), note: m.note};
+        if (m.group) mergeRow(byGroup, row); else rows.push(row);
       }
     }
   }
+  for (const g of byGroup.values()) { g.ref = `${g.units} cards · ${g.lines.slice(0, 3).map(([it]) => displayName(it)).join(', ')}${g.lines.length > 3 ? ` +${g.lines.length - 3}` : ''}${g.received ? ' → ' + g.received : ''}`; rows.push(g); }
   for (const g of byTxn.values()) { g.out = g.totalUsd != null ? g.totalUsd : g.cost; if (g.unpriced < g.units) { g.profit = g.valNow - g.out; g.pnl = g.valThen - g.out; g.fair = g.valThen; } rows.push(g); }
   for (const g of byOpen.values()) {
     if (!g.stamped) g.outVal = g.outs.reduce((a, o) => a + o.qty * (unitValue(o) ?? 0), 0);  // older openings: contents at today's valuation
@@ -1364,11 +1369,20 @@ function buildTxns(scope) {
   return rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.type || '').localeCompare(a.type || ''));
 }
 let TXN_ROWS = new Map();
+function mergeRow(map, row) {  // fold a move into its transaction's row
+  const g = map.get(row.key); if (!g) { map.set(row.key, row); return; }
+  for (const k of ['units', 'cost', 'inn', 'fee', 'profit', 'pnl', 'fair']) if (row[k] != null) g[k] = (g[k] || 0) + row[k];
+  g.lots.push(...row.lots); g.lines.push(...row.lines);
+  if (row.receivedIds) g.receivedIds = [...new Set([...(g.receivedIds || []), ...row.receivedIds])];
+  if (row.received && !g.received) g.received = row.received;
+}
 function showTxn(key) {  // every card in one ledger row, with its image
   const r = TXN_ROWS.get(key); if (!r) return;
-  const lines = r.type === 'open' ? [[r.lots[0], r.units], ...r.outs.map(o => [o, o.qty])] : r.lots.length === 1 ? [[r.lots[0], r.units]] : r.lots.map(it => [it, it.qty]);
-  const cards = lines.map(([it, q]) => { const v = unitValue(it), img = it.market?.image;
-    return `<div class="tcard"><div class="timg">${img ? `<img src="${esc(img)}" loading="lazy" alt="">` : '<span class="dim" style="font-size:22px">?</span>'}</div><div class="tname">${esc(displayName(it))}</div><div class="sub">${q}× · ${it.market?.price != null ? 'market ' + money(it.market.price) : 'no price'}${v != null ? ` · ${money(v)} at ${valuePct()}%` : ''}</div>${bookOf(it) !== BOOK ? `<div class="sub">${esc(BOOK_NAMES[it.book] || it.book)}</div>` : ''}</div>`; }).join('');
+  const lines = r.lines ? r.lines : r.type === 'open' ? [[r.lots[0], r.units], ...r.outs.map(o => [o, o.qty])] : r.lots.length === 1 ? [[r.lots[0], r.units]] : r.lots.map(it => [it, it.qty]);
+  const card = ([it, q]) => { const v = unitValue(it), img = it.market?.image;
+    return `<div class="tcard"><div class="timg">${img ? `<img src="${esc(img)}" loading="lazy" alt="">` : '<span class="dim" style="font-size:22px">?</span>'}</div><div class="tname">${esc(displayName(it))}</div><div class="sub">${q}× · ${it.market?.price != null ? 'market ' + money(it.market.price) : 'no price'}${v != null ? ` · ${money(v)} at ${valuePct()}%` : ''}</div>${bookOf(it) !== BOOK ? `<div class="sub">${esc(BOOK_NAMES[it.book] || it.book)}</div>` : ''}</div>`; };
+  const recv = (r.receivedIds || []).map(id => DOC.items.find(it => it.id === id)).filter(Boolean);
+  const cards = lines.map(card).join('') + (recv.length ? `</div><div class="subh" style="margin:12px 0 6px">Received</div><div class="tgrid">${recv.map(it => card([it, it.qty])).join('')}` : '');
   const sums = [r.out != null ? 'Out ' + money(r.out) : '', r.inn != null ? 'In ' + money(r.inn) : '', r.fair != null ? 'Fair value ' + money(r.fair) : '', r.profit != null ? 'Net profit ' + money(r.profit) : '', r.pnl != null ? 'Txn P&L ' + money(r.pnl) : ''].filter(Boolean).join(' · ');
   $('txntitle').textContent = `${TXN_LABEL[r.type]} · ${r.date || '—'} · ${r.who}`;
   $('txnbody').innerHTML = `<div class="sub" style="margin-bottom:10px">${esc(r.ref || '')}${r.note ? ' · ' + esc(r.note) : ''}</div><div class="tgrid">${cards}</div><div class="sub" style="margin-top:10px">${esc(sums)}</div>`;
@@ -1411,7 +1425,7 @@ function renderTxn() {
     tOut += r.out || 0; tIn += r.inn || 0; tP += r.profit || 0; tPnl += r.pnl || 0; tFair += r.fair || 0;
     const what = r.type === 'purchase' || r.dir === 'in'
       ? `${esc(r.ref && r.vendor && r.ref.startsWith(r.vendor) ? r.ref : (r.vendor ? r.vendor + (r.ref ? ' · ' + r.ref : '') : r.ref || ''))}${r.lots.length > 1 ? `<div class="sub">${r.lots.length} lines · ${r.lots.slice(0, 3).map(displayName).map(esc).join(', ')}${r.lots.length > 3 ? ` +${r.lots.length - 3}` : ''}</div>` : r.dir === 'in' ? `<div class="sub">bought from the ${esc(r.who.toLowerCase())} · ${money(r.out / r.units)} each</div>` : `<div class="sub">${esc(displayName(r.lots[0]))}</div>`}${r.valNow != null ? `<div class="sub">worth ${money(r.valNow)} now · ${money(r.valThen)} at ${valuePct()}% when bought${r.unpriced ? ` · ${r.unpriced} unpriced` : ''}</div>` : ''}${r.currency && r.currency !== 'USD' && r.total != null ? `<div class="sub">${(+r.total).toFixed(2)} ${esc(r.currency)}</div>` : ''}`
-      : `${esc(r.ref)}${r.note ? `<div class="sub">${esc(r.note)}</div>` : ''}`;
+      : `${(r.receivedIds || []).map(id => DOC.items.find(it => it.id === id)).filter(it => it && it.market?.image).slice(0, 2).map(it => `<img class="thumb" style="float:right;margin-left:6px" src="${esc(it.market.image)}" loading="lazy" alt="" title="${esc(displayName(it))}">`).join('')}${esc(r.ref)}${r.note ? `<div class="sub">${esc(r.note)}</div>` : ''}`;
     h += `<tr class="clk" onclick="showTxn('${r.key}')" title="Click for the cards"><td><span class="sub">${esc(r.date || '—')}</span>${r.upcoming ? '<div><span class="tag" style="color:var(--warn)">upcoming</span></div>' : ''}</td>
       <td><span class="gchip" style="background:${COLORS[r.type]}">${TXN_LABEL[r.type]}</span></td>
       <td>${esc(r.who)}</td><td>${what}</td><td class="num">${r.units}</td>

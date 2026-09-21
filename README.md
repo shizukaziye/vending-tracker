@@ -91,7 +91,9 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     Every row also shows its **fair value**: what the units were worth at the valuation share at
     the time (sales, gifts, trades and transfers when they left; purchases on the day they were
     bought; openings the contents). Click any row to see every card in it with its image, market
-    price and value.
+    price and value. Moves and lots that carry the same `group` (a bundle sold together, a
+    trade of several cards, cards bought for one price) show as one row with the combined numbers;
+    a trade move can name the lots it brought in (`receivedIds`) and the row shows their images.
   - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per
     region, with a row per in-transit destination region and an all-in-transit total; the
     address-level table is further down) and "P&L by day"
