@@ -345,7 +345,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:rgba(255,255,255,.035)}
         <div id="view_list" class="panel" style="display:none"><div class="tblwrap" id="invtbl"></div></div>
         <div id="view_sold" class="panel" style="display:none"><div class="tblwrap" id="soldtbl"></div></div>
         <div id="view_traded" class="panel" style="display:none"><div class="tblwrap" id="tradedtbl"></div></div>
-        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option><option value="gift">Gifts</option><option value="open">Opened</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label><label class="chk"><input type="checkbox" id="txn_byday" checked onchange="renderAll()">day totals</label></div><div class="tblwrap" id="txntbl"></div></div></div>
+        <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option><option value="gift">Gifts</option><option value="open">Opened</option><option value="expense">Expenses</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label><label class="chk"><input type="checkbox" id="txn_byday" checked onchange="renderAll()">day totals</label></div><div class="tblwrap" id="txntbl"></div></div></div>
         <div id="view_stats" style="display:none"></div>
       </div>
     </div>
@@ -1320,10 +1320,15 @@ function renderTraded() {
 function showItem(id) { const it = DOC.items.find(x => x.id === id); if (!it) { alert('That item was deleted.'); return; } $('q').value = it.product; $('hideGone').checked = false; setView('grid'); }
 
 // ---------- transactions ledger ----------
-const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer', gift: 'Gift', open: 'Opened'};
+const TXN_LABEL = {purchase: 'Purchase', sale: 'Sale', trade: 'Trade', transfer: 'Transfer', gift: 'Gift', open: 'Opened', expense: 'Expense'};
 function buildTxns(scope) {
   const items = scope || DOC.items.filter(inBook), rows = [], byTxn = new Map(), byOpen = new Map(), byGroup = new Map(), td = today();
   for (const it of items) {
+    if (it.category === 'Expense') {  // a fee, not stock: one row, the money simply gone
+      const c = it.qty * (it.unitCost || 0);
+      rows.push({key: 'e:' + it.id, date: it.purchaseDate || '', type: 'expense', who: it.source || '—', ref: displayName(it), lots: [it], lines: [[it, it.qty]], units: it.qty, cost: c, out: c, inn: 0, fair: 0, profit: -c, pnl: -c, note: it.notes, payer: it.payment || ''});
+      continue;
+    }
     const t = it.txn, src = it.source || '';
     const skipAcq = /^trade\b/i.test(src) || /^opened from/i.test(src);  // the trade / opening row is the event
     const xferIn = /^business inventory$|^personal collection$|^decks$/i.test(src);  // came from another book: a purchase here, the sale shows over there
@@ -1414,7 +1419,7 @@ function renderTxn() {
   let tOut = 0, tIn = 0, tP = 0, tPnl = 0, tFair = 0;
   TXN_ROWS = new Map(rows.map(r => [r.key, r]));
   const fairDay = new Map(); for (const r of rows) fairDay.set(r.date || '—', (fairDay.get(r.date || '—') || 0) + (r.fair || 0));
-  const COLORS = {purchase: '#66c7ff', sale: '#6ee7a8', trade: '#c78cff', transfer: '#97a0b4', gift: '#f5a3c7', open: '#ffd166'};
+  const COLORS = {purchase: '#66c7ff', sale: '#6ee7a8', trade: '#c78cff', transfer: '#97a0b4', gift: '#f5a3c7', open: '#ffd166', expense: '#ff8a8a'};
   const byDay = $('txn_byday').checked, days = byDay ? new Map(dayGroups(rows).map(d => [d.date, d])) : null;
   let curDay = null;
   for (const r of rows) {
