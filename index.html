@@ -711,7 +711,8 @@ const val2 = v => v == null ? null : +v.toFixed(2);
 const moveIn = m => m.type === 'sold' ? m.qty * m.unitPrice - (m.fee || 0) : (m.value || 0);
 const marketPrice = it => (it.market && it.market.price != null) ? +it.market.price : null;
 const hasOverride = it => it.valueOverride != null && it.valueOverride !== '';
-const unitValue = it => { if (hasOverride(it)) return +it.valueOverride; const m = marketPrice(it); return m == null ? null : m * valueRate(); };
+const shareOf = it => it.share != null && it.share > 0 && it.share < 1 ? +it.share : 1;  // a card owned jointly: only Shizu's share counts as value
+const unitValue = it => { if (hasOverride(it)) return +it.valueOverride; const m = marketPrice(it); return m == null ? null : m * valueRate() * shareOf(it); };
 const imgFor = it => it.market?.image || (it.market?.productId ? `https://tcgplayer-cdn.tcgplayer.com/product/${it.market.productId}_200w.jpg` : null);
 const bigImgFor = it => it.market?.productId ? `https://product-images.tcgplayer.com/fit-in/437x437/${it.market.productId}.jpg` : imgFor(it);
 const displayName = it => it.market?.productName || it.product;
@@ -744,7 +745,7 @@ function priceOn(it, day) {  // market price of one unit on that day; a set sums
   let sum = 0; for (const pid of pids) { const p = pidPriceOn(pid, day); if (p == null) return marketPrice(it); sum += p; }
   return sum;
 }
-const unitValueOn = (it, day) => { if (hasOverride(it)) return +it.valueOverride; const p = priceOn(it, day); return p == null ? null : p * valueRate(); };
+const unitValueOn = (it, day) => { if (hasOverride(it)) return +it.valueOverride; const p = priceOn(it, day); return p == null ? null : p * valueRate() * shareOf(it); };
 function changeFor(it, days = 1) {
   const h = histFor(it); if (h.length < 2) return null;
   const last = h[h.length - 1];
@@ -1110,7 +1111,7 @@ function renderGrid() {
   $('gridwrap').innerHTML = positions.map(p => {
     const it = p.rep, m = p.market || {}, fx = facetsOf(it), src = imgFor(it), ref = jsArg(p.key);
     const line1 = [fx.rarity || (fx.type === 'Sealed' ? fx.category : null), m.number ? '#' + m.number : null].filter(Boolean).join(' • ');
-    const extras = [fx.language && fx.language !== 'English' ? fx.language : null, fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');  // language shows on the face whenever it is not English
+    const extras = [shareOf(it) < 1 ? Math.round(shareOf(it) * 100) + '% share' : null, fx.language && fx.language !== 'English' ? fx.language : null, fx.finish, fx.printing && fx.printing !== 'Standard' ? fx.printing : null].filter(Boolean).join(' • ');  // language shows on the face whenever it is not English
     return `<div class="card ${gclass(it.game)}" data-pos="${esc(p.key)}">
       ${p.incoming ? `<span class="book">${p.incoming === p.onHand ? 'incoming' : p.incoming + ' incoming'}</span>` : ''}${p.lots.length > 1 ? `<span class="lots" title="${p.lots.length} order lines">${p.lots.length} lots</span>` : ''}${p.review ? `<span class="flag" title="Auto-matched — check the printing, then accept">review <button class="acc" data-accept="${esc(p.key)}" title="This match is right">✓ accept</button></span>` : ''}
       <div class="img" onclick="openDetails(${ref})">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🃏'}))">` : `<span class="ph">🃏</span>`}
