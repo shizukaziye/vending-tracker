@@ -1344,7 +1344,7 @@ function buildTxns(scope) {
       const cost = moveCost(it, m);
       if (m.type === 'sold') {
         const transfer = /^personal collection$|^business$|^decks$/i.test(m.channel || '');
-        const row = {key: m.group ? 'g:' + m.group : 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], lines: [[it, m.qty]], units: m.qty, cost, inn: moveIn(m), fee: m.fee || 0, profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), fair: moveValue(it, m), note: m.note};
+        const row = {key: m.group ? 'g:' + m.group : 'm:' + m.id, date: m.date || '', type: m.gift ? 'gift' : transfer ? 'transfer' : 'sale', who: m.channel || (m.gift ? 'Gift' : '—'), ref: displayName(it), lots: [it], lines: [[it, m.qty]], units: m.qty, cost, inn: moveIn(m), fee: m.fee || 0, profit: moveIn(m) - cost, pnl: moveIn(m) - moveValue(it, m), fair: moveValue(it, m), received: m.received || '', receivedIds: m.receivedIds || [], note: m.note};
         if (m.group) mergeRow(byGroup, row); else rows.push(row);
       } else if (m.type === 'opened') {  // one row per opening, even when it drew from several lots
         const outs = openOutputs(m), gk = 'o:' + (outs[0]?.fromOpenOf?.moveIds?.[0] || m.id);
