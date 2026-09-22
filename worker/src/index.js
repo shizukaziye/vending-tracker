@@ -4,6 +4,8 @@
 // GET  /market/search?q=&line=    -> TCGplayer product candidates with market prices (proxied; browsers can't call it directly)
 // GET  /market/price?ids=1,2,3    -> fresh market price per TCGplayer product id
 // GET  /catalog/riftbound         -> every Riftbound printing (tcgcsv feed), cached in KV for 20h, for type-ahead adds
+// GET  /catalog/sets?cat=3         -> the sets of a TCGplayer category (3 Pokémon, 89 Riftbound, 68 One Piece, 1 Magic, 20 Weiss, 85 Pokémon Japan), cached 24h
+// GET  /catalog/set?cat=3&group=N  -> every card in one set with its Normal (and Foil) market price, cached 20h; the wishlist browser
 
 const EMPTY = '{"rev":0,"items":[]}';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
@@ -59,6 +61,36 @@ async function riftboundCatalog(env) {
   }
   const doc = { at: Date.now(), game: 'Riftbound', products: out };
   await env.DATA.put('catalog:riftbound', JSON.stringify(doc));
+  return doc;
+}
+
+async function tcgcsv(path) {
+  const r = await fetch('https://tcgcsv.com/tcgplayer/' + path, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
+  if (!r.ok) throw new Error('tcgcsv HTTP ' + r.status);
+  return (await r.json()).results || [];
+}
+async function catalogSets(env, cat) {
+  const key = 'catalog:sets:' + cat, cached = await env.DATA.get(key, 'json');
+  if (cached && Date.now() - cached.at < 24 * 3600 * 1000) return cached;
+  const sets = (await tcgcsv(cat + '/groups')).map((g) => ({ id: g.groupId, name: g.name, abbr: g.abbreviation || '', date: (g.publishedOn || '').slice(0, 10) }))
+    .sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
+  const doc = { at: Date.now(), cat, sets };
+  await env.DATA.put(key, JSON.stringify(doc));
+  return doc;
+}
+async function catalogSet(env, cat, group) {
+  const key = 'catalog:set:' + cat + ':' + group, cached = await env.DATA.get(key, 'json');
+  if (cached && Date.now() - cached.at < CATALOG_TTL) return cached;
+  const [pr, px] = await Promise.all([tcgcsv(cat + '/' + group + '/products'), tcgcsv(cat + '/' + group + '/prices')]);
+  const price = {};  // Normal wins over Foil (TCGplayer's product price is the Normal one); a single printing keeps whatever it has
+  for (const p of px) { const e = (price[p.productId] ||= {}); e[p.subTypeName || 'Normal'] = p.marketPrice; }
+  const products = pr.map((p) => {
+    const ext = Object.fromEntries((p.extendedData || []).map((e) => [e.name, e.value])), e = price[p.productId] || {};
+    const subs = Object.keys(e), normal = e.Normal ?? e.Holofoil ?? e[subs[0]] ?? null;
+    return { id: p.productId, n: p.name, num: ext.Number || '', r: ext.Rarity || '', p: normal, pf: e.Foil ?? e['Reverse Holofoil'] ?? null, subs, url: p.url || null };
+  }).filter((p) => !/^Code Card/i.test(p.n));
+  const doc = { at: Date.now(), cat, group, products };
+  await env.DATA.put(key, JSON.stringify(doc));
   return doc;
 }
 
@@ -130,6 +162,15 @@ export default {
       }
     }
 
+    if (url.pathname === '/catalog/sets' && req.method === 'GET') {
+      const cat = parseInt(url.searchParams.get('cat') || '', 10); if (!cat) return json({ error: 'cat required' }, 400, cors);
+      try { return new Response(JSON.stringify(await catalogSets(env, cat)), { headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=3600' } }); } catch (e) { return json({ error: String(e) }, 502, cors); }
+    }
+    if (url.pathname === '/catalog/set' && req.method === 'GET') {
+      const cat = parseInt(url.searchParams.get('cat') || '', 10), group = parseInt(url.searchParams.get('group') || '', 10);
+      if (!cat || !group) return json({ error: 'cat and group required' }, 400, cors);
+      try { return new Response(JSON.stringify(await catalogSet(env, cat, group)), { headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=3600' } }); } catch (e) { return json({ error: String(e) }, 502, cors); }
+    }
     if (url.pathname === '/catalog/riftbound' && req.method === 'GET') {
       try {
         const c = await riftboundCatalog(env);

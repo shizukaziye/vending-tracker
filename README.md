@@ -97,6 +97,12 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     A lot with category **Expense** (a vendor fee, an entry fee with nothing to show for it) is a
     single ledger row: the amount out, and the same amount as negative net profit and Txn P&L.
     Write it off with a $0 sale so it leaves stock; the ledger ignores that move.
+  - **Wishlist** tab: pick a game and a set and the page lists every card in it (from the tcgcsv feed
+    via the Worker, cached 20h) with the TCGplayer market price, how many the personal collection holds
+    (PC) and how many sit in business or decks. Sort by any column, filter by text, rarity, ownership,
+    wishlist status or price, tick cards and add them, or add one at a time. "My wishlist" shows every
+    wanted card against what the collection has, with the cost of what is still missing; quantities,
+    removal and a price refresh live there. The list is saved with the document as `settings.wishlist`.
     A lot with `share` (0.5 for a card owned half with someone) counts only that share of its
     market value; enter only your share of the cost. The card face shows the percentage.
   - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per
