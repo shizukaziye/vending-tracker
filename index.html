@@ -220,7 +220,7 @@ footer .note{font-size:12px;color:var(--dim)}
 .tcard .timg{aspect-ratio:5/7;display:flex;align-items:center;justify-content:center;background:#0b0e14;border-radius:6px;overflow:hidden;margin-bottom:6px}
 .tcard .timg img{width:100%;height:100%;object-fit:contain}
 .tcard .tname{font-size:12px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
-table.wish tr.wished td{background:rgba(245,163,199,.06)}table.wish tr.done td{opacity:.6}th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--text)}button.mini{padding:2px 7px;font-size:12px;border-radius:6px}#w_setmode.on,#w_listmode.on{color:var(--accent);border-color:var(--accent)}
+.wishcard{cursor:pointer;transition:transform .08s,border-color .12s,box-shadow .12s}.wishcard:hover{transform:translateY(-2px);border-color:#3a4358}.wishcard.wished{border-color:#f5a3c7;box-shadow:0 0 0 2px rgba(245,163,199,.28)}.wishcard .img{cursor:pointer}.wishcard .heart{position:absolute;top:8px;right:8px;background:#f5a3c7;color:#2a0f1c;font-weight:800;border-radius:999px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,.4)}.wishcard .pcb{position:absolute;top:8px;left:8px;background:rgba(94,224,201,.92);color:#062a24;font-weight:700;font-size:11px;border-radius:6px;padding:2px 6px}.wishcard.havepc .img img{opacity:.85}.grid.s .wishcard .meta{display:block;font-size:12px}button.mini{padding:2px 7px;font-size:12px;border-radius:6px}#w_setmode.on,#w_listmode.on{color:var(--accent);border-color:var(--accent)}
 tr.clk{cursor:pointer}tr.clk:hover td{background:rgba(255,255,255,.035)}
 #tip{position:fixed;z-index:50;display:none;width:340px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);pointer-events:none;font-size:13px}
 #tip img{width:100%;max-height:300px;object-fit:contain;border-radius:8px;background:#0d1017;margin-bottom:8px}
@@ -350,28 +350,27 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:rgba(255,255,255,.035)}
         <div id="view_txn" style="display:none"><div class="tiles" id="txntiles"></div><div class="panel"><div class="toolbar" style="margin-bottom:8px"><select id="txn_type" onchange="renderAll()"><option value="">All types</option><option value="purchase">Purchases</option><option value="sale">Sales</option><option value="trade">Trades</option><option value="transfer">Transfers</option><option value="gift">Gifts</option><option value="open">Opened</option><option value="expense">Expenses</option></select><select id="txn_month" onchange="renderAll()"><option value="">All months</option></select><label class="chk"><input type="checkbox" id="txn_upcoming" checked onchange="renderAll()">include upcoming</label><label class="chk"><input type="checkbox" id="txn_byday" checked onchange="renderAll()">day totals</label></div><div class="tblwrap" id="txntbl"></div></div></div>
         <div id="view_stats" style="display:none"></div>
         <div id="view_wish" style="display:none">
-          <div class="panel">
-            <div class="toolbar" style="margin-bottom:8px">
-              <button id="w_setmode" class="on" onclick="wishSetMode('set')">Browse a set</button><button id="w_listmode" onclick="wishSetMode('list')">My wishlist</button>
-              <span id="w_settools" style="display:contents">
-                <select id="w_cat" onchange="wishLoadSets()"></select>
-                <select id="w_set" onchange="wishLoadSet()" style="max-width:320px"></select>
-                <input id="w_q" placeholder="Filter cards…" oninput="renderWish()" style="min-width:140px">
-                <select id="w_rar" onchange="renderWish()"><option value="">All rarities</option></select>
-                <select id="w_own" onchange="renderWish()"><option value="">Owned or not</option><option value="nopc">Not in my collection</option><option value="pc">In my collection</option><option value="none">Not owned anywhere</option><option value="any">Owned somewhere</option><option value="wish">On the wishlist</option><option value="nowish">Not on the wishlist</option></select>
-                <input id="w_min" type="number" placeholder="min $" step="0.01" oninput="renderWish()" style="width:80px"><input id="w_max" type="number" placeholder="max $" step="0.01" oninput="renderWish()" style="width:80px">
-                <button id="w_addsel" class="primary" onclick="wishAddSelected()" disabled>Add selected (0)</button>
-              </span>
-              <span id="w_listtools" style="display:none">
-                <input id="w_lq" placeholder="Filter wishlist…" oninput="renderWish()" style="min-width:160px">
-                <label class="chk"><input type="checkbox" id="w_need" onchange="renderWish()">only what I still need</label>
-                <button id="w_refresh" onclick="wishRefreshPrices()">Refresh prices</button>
-              </span>
-            </div>
-            <div class="tiles" id="w_sum" style="margin-bottom:10px"></div>
-            <div class="sub" style="margin:-2px 0 8px">Every card in the set with today's TCGplayer market price. Click a column to sort; PC is how many your personal collection holds. The wishlist is what the collection is aiming for.</div>
-            <div class="tblwrap" id="wishtbl"></div>
+          <div class="toolbar" style="margin-bottom:10px">
+            <button id="w_setmode" class="on" onclick="wishSetMode('set')">Browse a set</button><button id="w_listmode" onclick="wishSetMode('list')">My wishlist</button>
+            <span id="w_settools" style="display:contents">
+              <select id="w_cat" onchange="wishLoadSets()"></select>
+              <select id="w_set" onchange="wishLoadSet()" style="max-width:320px"></select>
+              <input id="w_q" placeholder="Filter cards…" oninput="renderWish()" style="min-width:140px">
+              <select id="w_rar" onchange="renderWish()"><option value="">All rarities</option></select>
+              <select id="w_own" onchange="renderWish()"><option value="">Owned or not</option><option value="nopc">Not in my collection</option><option value="pc">In my collection</option><option value="none">Not owned anywhere</option><option value="any">Owned somewhere</option><option value="wish">On the wishlist</option><option value="nowish">Not on the wishlist</option></select>
+              <input id="w_min" type="number" placeholder="min $" step="0.01" oninput="renderWish()" style="width:80px"><input id="w_max" type="number" placeholder="max $" step="0.01" oninput="renderWish()" style="width:80px">
+              <button onclick="wishAddShown()" title="add every card shown">Want all shown</button>
+            </span>
+            <span id="w_listtools" style="display:none">
+              <input id="w_lq" placeholder="Filter wishlist…" oninput="renderWish()" style="min-width:160px">
+              <label class="chk"><input type="checkbox" id="w_need" onchange="renderWish()">only what I still need</label>
+              <button id="w_refresh" onclick="wishRefreshPrices()">Refresh prices</button>
+            </span>
+            <select id="w_sort" onchange="renderWish()"><option value="num">Set order</option><option value="name">Name</option><option value="phi">Price high → low</option><option value="plo">Price low → high</option><option value="rarity">Rarity</option><option value="pc">Owned in PC</option><option value="need">Still needed</option><option value="added">Recently added</option></select>
           </div>
+          <div class="tiles" id="w_sum" style="margin-bottom:10px"></div>
+          <div class="sub" style="margin:-2px 0 10px">Click a card to add it to the wishlist, click again to take it off. ♥ marks wanted cards, PC ×n is how many your personal collection already holds.</div>
+          <div class="grid" id="wishgrid"></div>
         </div>
 
       </div>
@@ -1402,11 +1401,11 @@ function buildTxns(scope) {
   for (const r of rows) r.upcoming = r.date > td;
   return rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.type || '').localeCompare(a.type || ''));
 }
-// ---------- wishlist: browse any set, pick cards, keep the list in settings.wishlist ----------
+// ---------- wishlist: browse any set as a card grid, click a card to want it; the list lives in settings.wishlist ----------
 const WISH_CATS = [[3, 'Pokémon'], [89, 'Riftbound'], [68, 'One Piece'], [1, 'Magic'], [20, 'Weiss Schwarz'], [85, 'Pokémon (Japan)']];
-const WISH = {cat: 3, group: null, sets: [], cards: [], mode: 'set', sel: new Set(), sort: {k: 'num', dir: 1}, loading: '', booted: false};
+const WISH = {cat: 3, group: null, sets: [], cards: [], mode: 'set', loading: '', booted: false};
 const wishlist = () => ((DOC.settings ||= {}).wishlist ||= []);
-window.toast = window.toast || (msg => { let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 14px;z-index:90;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.4)'; document.body.appendChild(t); } t.textContent = msg; t.style.display = ''; clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1800); });
+window.toast = window.toast || (msg => { let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 14px;z-index:90;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.4)'; document.body.appendChild(t); } t.textContent = msg; t.style.display = ''; clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1600); });
 const wishBy = () => new Map(wishlist().map(w => [w.pid, w]));
 const numKey = s => { const m = String(s || '').match(/(\d+)/); return m ? +m[1] : 1e9; };
 function ownedMap() {  // productId -> {personal, business, decks} units on hand (set lots count each part once)
@@ -1417,11 +1416,11 @@ function ownedMap() {  // productId -> {personal, business, decks} units on hand
 }
 async function wishBoot() {
   if (WISH.booted) return; WISH.booted = true;
-  try { const s = JSON.parse(localStorage.getItem('vt_wish') || '{}'); if (s.cat) WISH.cat = s.cat; if (s.group) WISH.group = s.group; if (s.mode) WISH.mode = s.mode; } catch {}
+  try { const s = JSON.parse(localStorage.getItem('vt_wish') || '{}'); if (s.cat) WISH.cat = s.cat; if (s.group) WISH.group = s.group; if (s.mode) WISH.mode = s.mode; if (s.sort) $('w_sort').value = s.sort; } catch {}
   $('w_cat').innerHTML = WISH_CATS.map(([id, n]) => `<option value="${id}" ${id === +WISH.cat ? 'selected' : ''}>${n}</option>`).join('');
   await wishLoadSets();
 }
-function wishRemember() { try { localStorage.setItem('vt_wish', JSON.stringify({cat: WISH.cat, group: WISH.group, mode: WISH.mode})); } catch {} }
+function wishRemember() { try { localStorage.setItem('vt_wish', JSON.stringify({cat: WISH.cat, group: WISH.group, mode: WISH.mode, sort: $('w_sort').value})); } catch {} }
 async function wishLoadSets() {
   WISH.cat = +$('w_cat').value; WISH.loading = 'sets'; renderWish();
   try { const r = await apiFetch('GET', null, `/catalog/sets?cat=${WISH.cat}`); WISH.sets = r.ok ? (await r.json()).sets || [] : []; } catch { WISH.sets = []; }
@@ -1431,26 +1430,22 @@ async function wishLoadSets() {
   await wishLoadSet();
 }
 async function wishLoadSet() {
-  WISH.group = +$('w_set').value || null; WISH.sel.clear(); wishRemember();
+  WISH.group = +$('w_set').value || null; wishRemember();
   if (!WISH.group) { WISH.cards = []; renderWish(); return; }
   WISH.loading = 'cards'; renderWish();
   try { const r = await apiFetch('GET', null, `/catalog/set?cat=${WISH.cat}&group=${WISH.group}`); WISH.cards = r.ok ? (await r.json()).products || [] : []; } catch { WISH.cards = []; }
   WISH.loading = '';
-  // wishlist entries from this set pick up the fresh price
   const wb = wishBy(); for (const c of WISH.cards) { const w = wb.get(c.id); if (w && c.p != null) { w.price = c.p; w.image = w.image || imgOf(c.id); } }
   renderWish();
 }
 function wishSetMode(m) { WISH.mode = m; wishRemember(); renderWish(); }
-function wishSortBy(k) { if (WISH.sort.k === k) WISH.sort.dir = -WISH.sort.dir; else WISH.sort = {k, dir: k === 'p' || k === 'own' ? -1 : 1}; renderWish(); }
-function wishToggle(pid, on) { if (on) WISH.sel.add(pid); else WISH.sel.delete(pid); $('w_addsel').textContent = `Add selected (${WISH.sel.size})`; $('w_addsel').disabled = !WISH.sel.size; }
-function wishSelectShown(on) { for (const c of WISH.shown || []) wishToggle(c.id, on); document.querySelectorAll('#wishtbl input[type=checkbox][data-pid]').forEach(b => { b.checked = on; }); }
-function wishAdd(pids) {
-  const wb = wishBy(), set = WISH.sets.find(s => s.id === +WISH.group), now = today();
-  let n = 0;
-  for (const pid of pids) { if (wb.has(pid)) continue; const c = WISH.cards.find(x => x.id === pid); if (!c) continue; wishlist().push({pid, cat: WISH.cat, group: WISH.group, set: set?.name || c.s || '', name: c.n, num: c.num || '', rarity: c.r || '', qty: 1, price: c.p ?? null, image: imgOf(pid), addedAt: now}); n++; }
-  WISH.sel.clear(); markDirty(); return n;
+function wishToggle(pid) {  // click a card: want it, click again: drop it
+  const l = wishlist(), i = l.findIndex(w => w.pid === pid);
+  if (i >= 0) { l.splice(i, 1); toast('Removed from the wishlist'); }
+  else { const c = WISH.cards.find(x => x.id === pid); if (!c) return; const set = WISH.sets.find(s => s.id === +WISH.group); l.push({pid, cat: WISH.cat, group: WISH.group, set: set?.name || '', name: c.n, num: c.num || '', rarity: c.r || '', qty: 1, price: c.p ?? null, image: imgOf(pid), addedAt: today()}); toast('Added ' + c.n); }
+  markDirty();
 }
-function wishAddSelected() { const n = wishAdd([...WISH.sel]); $('w_addsel').textContent = 'Add selected (0)'; $('w_addsel').disabled = true; if (n) toast(`${n} card${n === 1 ? '' : 's'} added to the wishlist`); }
+function wishAddShown() { const wb = wishBy(); let n = 0; for (const c of WISH.shown || []) if (!wb.has(c.id)) { wishToggle(c.id); n++; } if (n) toast(`${n} card${n === 1 ? '' : 's'} added`); }
 function wishRemove(pid) { const l = wishlist(); const i = l.findIndex(w => w.pid === pid); if (i >= 0) { l.splice(i, 1); markDirty(); } }
 function wishQty(pid, d) { const w = wishBy().get(pid); if (!w) return; w.qty = Math.max(1, (w.qty || 1) + d); markDirty(); }
 async function wishRefreshPrices() {
@@ -1461,64 +1456,50 @@ async function wishRefreshPrices() {
   }
   $('w_refresh').disabled = false; $('w_refresh').textContent = 'Refresh prices'; markDirty();
 }
-function wishRows() {  // the set browser rows after filters + sort
-  const q = norm($('w_q').value), rar = $('w_rar').value, own = $('w_own').value, min = +$('w_min').value || 0, max = +$('w_max').value || 0;
-  const wb = wishBy(), om = ownedMap();
-  let rows = WISH.cards.map(c => { const o = om[c.id] || {personal: 0, business: 0, decks: 0}; return {...c, own: o, wish: wb.get(c.id) || null}; });
-  rows = rows.filter(c => (!q || norm(c.n + ' ' + (c.num || '') + ' ' + (c.r || '')).includes(q)) && (!rar || c.r === rar) &&
-    (own === '' || (own === 'pc' && c.own.personal > 0) || (own === 'nopc' && c.own.personal === 0) || (own === 'any' && (c.own.personal + c.own.business + c.own.decks) > 0) || (own === 'none' && (c.own.personal + c.own.business + c.own.decks) === 0) || (own === 'wish' && c.wish) || (own === 'nowish' && !c.wish)) &&
-    (!min || (c.p ?? 0) >= min) && (!max || (c.p ?? 0) <= max));
-  const k = WISH.sort.k, d = WISH.sort.dir;
-  const key = c => k === 'num' ? numKey(c.num) : k === 'n' ? c.n.toLowerCase() : k === 'r' ? (c.r || '') : k === 'p' ? (c.p ?? -1) : k === 'own' ? c.own.personal : k === 'wish' ? (c.wish ? 1 : 0) : 0;
-  rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : numKey(a.num) - numKey(b.num)) * d; });
-  return rows;
+function wishSorted(rows, k) {
+  const key = c => k === 'name' ? c.name.toLowerCase() : k === 'rarity' ? (c.rarity || '') : k === 'phi' ? -(c.price ?? -1) : k === 'plo' ? (c.price ?? 1e9) : k === 'pc' ? -c.own.personal : k === 'need' ? -(c.need || 0) : k === 'added' ? (c.addedAt || '') : numKey(c.num);
+  return rows.sort((a, b) => { const x = key(a), y = key(b); return x < y ? -1 : x > y ? 1 : (a.set || '').localeCompare(b.set || '') || numKey(a.num) - numKey(b.num); });
+}
+function wishCard(c, extra) {  // one tile, same bones as the collection grid
+  const tot = c.own.personal + c.own.business + c.own.decks;
+  return `<div class="card wishcard ${c.wish ? 'wished' : ''} ${c.own.personal ? 'havepc' : ''}" onclick="wishToggle(${c.pid})" title="${c.wish ? 'Click to remove from the wishlist' : 'Click to add to the wishlist'}">
+    <div class="img"><img src="${esc(c.image || imgOf(c.pid))}" loading="lazy" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'ph', textContent: '?'}))">${c.wish ? '<span class="heart">♥</span>' : ''}${c.own.personal ? `<span class="pcb" title="in the personal collection">PC ×${c.own.personal}</span>` : ''}</div>
+    <div class="ttl">${esc(c.name)}</div>
+    <div class="meta">${esc(c.num || '')}${c.rarity ? ' <span class="c">' + esc(c.rarity) + '</span>' : ''}${c.set && WISH.mode === 'list' ? `<div class="sub">${esc(c.set)}</div>` : ''}</div>
+    <div class="price">${c.price != null ? money(c.price) : '<span class="dim">—</span>'}${c.pf != null && c.pf !== c.price ? `<span class="chg flat">foil ${money(c.pf)}</span>` : ''}</div>
+    ${extra || (tot && !c.own.personal ? `<div class="cost">biz ${c.own.business} · deck ${c.own.decks}</div>` : '')}</div>`;
 }
 function renderWish() {
   if (!WISH.booted) { wishBoot(); return; }
   const setMode = WISH.mode === 'set';
   $('w_setmode').classList.toggle('on', setMode); $('w_listmode').classList.toggle('on', !setMode);
   $('w_settools').style.display = setMode ? '' : 'none'; $('w_listtools').style.display = setMode ? 'none' : '';
-  const arrow = k => WISH.sort.k === k ? (WISH.sort.dir > 0 ? ' ▲' : ' ▼') : '';
-  const th = (k, label, cls = '') => `<th class="${cls} sortable" onclick="wishSortBy('${k}')">${label}${arrow(k)}</th>`;
+  $('wishgrid').className = 'grid ' + DENSITY;
+  const om = ownedMap(), wb = wishBy(), k = $('w_sort').value; wishRemember();
   if (setMode) {
-    if (WISH.loading) { $('wishtbl').innerHTML = `<div class="empty">Loading ${WISH.loading}…</div>`; return; }
+    $('w_sum').innerHTML = '';
+    if (WISH.loading) { $('wishgrid').innerHTML = `<div class="empty" style="grid-column:1/-1">Loading ${WISH.loading}…</div>`; return; }
     const rars = [...new Set(WISH.cards.map(c => c.r).filter(Boolean))].sort(); const keepR = $('w_rar').value;
     $('w_rar').innerHTML = '<option value="">All rarities</option>' + rars.map(r => `<option value="${esc(r)}" ${r === keepR ? 'selected' : ''}>${esc(r)}</option>`).join('');
-    const rows = wishRows(); WISH.shown = rows;
-    $('count').textContent = `${rows.length} of ${WISH.cards.length} cards`;
-    if (!rows.length) { $('wishtbl').innerHTML = '<div class="empty">No cards match.</div>'; return; }
-    let h = `<table class="wish"><tr><th><input type="checkbox" onchange="wishSelectShown(this.checked)" title="select all shown"></th><th></th>${th('n', 'Card')}${th('num', '#')}${th('r', 'Rarity')}${th('p', 'Market', 'num')}${th('own', 'PC', 'num')}<th class="num hidemob" title="business / decks">Biz · Deck</th>${th('wish', 'Wishlist')}</tr>`;
-    for (const c of rows) {
-      const tot = c.own.personal + c.own.business + c.own.decks;
-      h += `<tr class="${c.wish ? 'wished' : ''}"><td><input type="checkbox" data-pid="${c.id}" ${WISH.sel.has(c.id) ? 'checked' : ''} onchange="wishToggle(${c.id}, this.checked)"></td>
-        <td><img class="thumb" src="${esc(imgOf(c.id))}" loading="lazy" alt="" onerror="this.remove()"></td>
-        <td><a href="${esc(c.url || 'https://www.tcgplayer.com/product/' + c.id)}" target="_blank" rel="noopener">${esc(c.n)}</a></td><td class="sub">${esc(c.num || '')}</td><td class="sub">${esc(c.r || '')}</td>
-        <td class="num">${c.p != null ? money(c.p) : '<span class="dim">—</span>'}${c.pf != null && c.pf !== c.p ? `<div class="sub">foil ${money(c.pf)}</div>` : ''}</td>
-        <td class="num ${c.own.personal ? 'good' : ''}">${c.own.personal || ''}</td><td class="num hidemob sub">${c.own.business || c.own.decks ? `${c.own.business} · ${c.own.decks}` : ''}</td>
-        <td>${c.wish ? `<span class="gchip" style="background:#f5a3c7">wanted ×${c.wish.qty || 1}</span> <button class="mini" onclick="wishRemove(${c.id})">remove</button>` : `<button class="mini" onclick="wishAdd([${c.id}]); toast('Added ' + ${JSON.stringify(c.n)})">+ wishlist</button>`}</td></tr>`;
-    }
-    $('wishtbl').innerHTML = h + '</table>';
-    $('w_addsel').textContent = `Add selected (${WISH.sel.size})`; $('w_addsel').disabled = !WISH.sel.size;
+    const q = norm($('w_q').value), rar = $('w_rar').value, own = $('w_own').value, min = +$('w_min').value || 0, max = +$('w_max').value || 0;
+    let rows = WISH.cards.map(c => ({pid: c.id, name: c.n, num: c.num, rarity: c.r, price: c.p, pf: c.pf, own: om[c.id] || {personal: 0, business: 0, decks: 0}, wish: wb.get(c.id) || null}));
+    rows = rows.filter(c => (!q || norm(c.name + ' ' + (c.num || '') + ' ' + (c.rarity || '')).includes(q)) && (!rar || c.rarity === rar) &&
+      (own === '' || (own === 'pc' && c.own.personal > 0) || (own === 'nopc' && c.own.personal === 0) || (own === 'any' && (c.own.personal + c.own.business + c.own.decks) > 0) || (own === 'none' && (c.own.personal + c.own.business + c.own.decks) === 0) || (own === 'wish' && c.wish) || (own === 'nowish' && !c.wish)) &&
+      (!min || (c.price ?? 0) >= min) && (!max || (c.price ?? 0) <= max));
+    wishSorted(rows, k); WISH.shown = rows;
+    const wanted = rows.filter(c => c.wish).length;
+    $('count').textContent = `${rows.length} of ${WISH.cards.length} cards · ${wanted} wanted`;
+    $('wishgrid').innerHTML = rows.length ? rows.map(c => wishCard(c)).join('') : '<div class="empty" style="grid-column:1/-1">No cards match.</div>';
   } else {
-    const om = ownedMap(), q = norm($('w_lq').value), onlyNeed = $('w_need').checked;
-    let rows = wishlist().map(w => { const o = om[w.pid] || {personal: 0, business: 0, decks: 0}; const need = Math.max(0, (w.qty || 1) - o.personal); return {...w, own: o, need}; })
+    const q = norm($('w_lq').value), onlyNeed = $('w_need').checked;
+    let rows = wishlist().map(w => { const o = om[w.pid] || {personal: 0, business: 0, decks: 0}; return {...w, own: o, wish: w, need: Math.max(0, (w.qty || 1) - o.personal)}; })
       .filter(w => (!q || norm(w.name + ' ' + w.set + ' ' + w.num).includes(q)) && (!onlyNeed || w.need > 0));
-    const k = WISH.sort.k, d = WISH.sort.dir;
-    const key = w => k === 'n' ? w.name.toLowerCase() : k === 'set' ? w.set : k === 'num' ? numKey(w.num) : k === 'r' ? w.rarity : k === 'p' ? (w.price ?? -1) : k === 'own' ? w.own.personal : k === 'need' ? w.need : k === 'added' ? w.addedAt : 0;
-    rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : a.set.localeCompare(b.set) || numKey(a.num) - numKey(b.num)) * d; });
-    const needMkt = rows.reduce((a, w) => a + w.need * (w.price || 0), 0), all = wishlist(), allNeed = all.reduce((a, w) => a + Math.max(0, (w.qty || 1) - (om[w.pid]?.personal || 0)), 0);
+    wishSorted(rows, k);
+    const all = wishlist(), allNeed = all.reduce((a, w) => a + Math.max(0, (w.qty || 1) - (om[w.pid]?.personal || 0)), 0), needMkt = rows.reduce((a, w) => a + w.need * (w.price || 0), 0);
     $('count').textContent = `${rows.length} of ${all.length} wanted`;
     $('w_sum').innerHTML = `<div class="tile"><div class="v">${all.length}</div><div class="l">Cards wanted</div></div><div class="tile"><div class="v">${allNeed}</div><div class="l">Still to get</div></div><div class="tile"><div class="v">${money(needMkt)}</div><div class="l">Market of what's shown and missing<div class="sub">${money(needMkt * valueRate())} at ${valuePct()}%</div></div></div>`;
-    if (!rows.length) { $('wishtbl').innerHTML = '<div class="empty">Nothing on the wishlist yet. Browse a set and add cards.</div>'; return; }
-    let h = `<table class="wish"><tr><th></th>${th('n', 'Card')}${th('set', 'Set')}${th('num', '#')}${th('r', 'Rarity', 'hidemob')}${th('p', 'Market', 'num')}<th class="num">Want</th>${th('own', 'PC has', 'num')}${th('need', 'Need', 'num')}${th('added', 'Added', 'hidemob')}<th class="actions"></th></tr>`;
-    for (const w of rows) h += `<tr class="${w.need ? '' : 'done'}"><td><img class="thumb" src="${esc(w.image || imgOf(w.pid))}" loading="lazy" alt="" onerror="this.remove()"></td>
-      <td><a href="https://www.tcgplayer.com/product/${w.pid}" target="_blank" rel="noopener">${esc(w.name)}</a></td><td class="sub">${esc(w.set)}</td><td class="sub">${esc(w.num || '')}</td><td class="sub hidemob">${esc(w.rarity || '')}</td>
-      <td class="num">${w.price != null ? money(w.price) : '<span class="dim">—</span>'}</td>
-      <td class="num"><button class="mini" onclick="wishQty(${w.pid}, -1)">−</button> ${w.qty || 1} <button class="mini" onclick="wishQty(${w.pid}, 1)">+</button></td>
-      <td class="num ${w.own.personal ? 'good' : ''}">${w.own.personal || ''}${w.own.business || w.own.decks ? `<div class="sub">biz ${w.own.business} · deck ${w.own.decks}</div>` : ''}</td>
-      <td class="num ${w.need ? 'bad' : 'good'}">${w.need ? w.need : '✓'}</td><td class="sub hidemob">${esc(w.addedAt || '')}</td>
-      <td class="actions"><button class="mini" onclick="wishRemove(${w.pid})">remove</button></td></tr>`;
-    $('wishtbl').innerHTML = h + '</table>';
+    $('wishgrid').innerHTML = rows.length ? rows.map(w => wishCard(w, `<div class="foot" onclick="event.stopPropagation()"><span class="${w.need ? 'qty bad' : 'qty'}">${w.need ? `need ${w.need}` : 'have it ✓'}</span><span class="cost"><button class="mini" onclick="wishQty(${w.pid}, -1)">−</button> want ${w.qty || 1} <button class="mini" onclick="wishQty(${w.pid}, 1)">+</button> <button class="mini" onclick="wishRemove(${w.pid})" title="remove">×</button></span></div>`)).join('')
+      : '<div class="empty" style="grid-column:1/-1">Nothing on the wishlist yet. Browse a set and click the cards you want.</div>';
   }
 }
 
