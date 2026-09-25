@@ -104,6 +104,10 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     status or price, or "Want all shown". "My wishlist" is the same grid across sets with the
     quantity wanted, what is still missing and its cost, plus a price refresh. Saved with the
     document as `settings.wishlist`.
+  - **Overview** also lists the biggest gainers and losers: one row per product position in the
+    book, unrealized gain = value at the valuation share minus the cost of what is on hand, with
+    cost and value per unit; and the products up or down the most over 30 days (price change ×
+    units on hand).
     A lot with `share` (0.5 for a card owned half with someone) counts only that share of its
     market value; enter only your share of the cost. The card face shows the percentage.
   - **Overview tab** also opens with "Where the value is" (units, cost, value and gain per

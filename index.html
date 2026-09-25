@@ -1687,6 +1687,15 @@ function renderStats() {
   const withVal = items.filter(i => onHand(i) > 0 && unitValue(i) != null);
   const top = withVal.slice().sort((a, b) => onHand(b) * unitValue(b) - onHand(a) * unitValue(a)).slice(0, 12);
   const movers = withVal.map(i => ({i, c: changeFor(i)})).filter(x => x.c && Math.abs(x.c.abs) > 0.005).sort((a, b) => Math.abs(b.c.abs * onHand(b.i)) - Math.abs(a.c.abs * onHand(a.i))).slice(0, 12);
+  // gainers / losers: one row per product position, unrealized gain = value at the mark minus cost of what is on hand
+  const pos = buildPositions(items).filter(p => p.onHand > 0 && p.gain != null && p.cost > 0);
+  const gainers = pos.filter(p => p.gain > 0.005).sort((a, b) => b.gain - a.gain).slice(0, 12), losers = pos.filter(p => p.gain < -0.005).sort((a, b) => a.gain - b.gain).slice(0, 12);
+  const glRow = p => `<tr><td><div style="display:flex;gap:8px;align-items:center"><img class="thumb" src="${esc(imgFor(p.rep))}" loading="lazy" alt="" onerror="this.remove()"><div>${esc(displayName(p.rep))}<div class="sub">${esc(p.rep.market?.setName || p.rep.category || '')} · ${p.onHand} on hand</div></div></div></td><td class="num">${money(p.avgCost)}</td><td class="num">${money(p.uv ?? 0)}<div class="sub">mkt ${money(p.mp ?? 0)}</div></td><td class="num ${p.gain >= 0 ? 'good' : 'bad'}">${p.gain >= 0 ? '+' : ''}${money(p.gain)}<div class="sub">${pct(p.gain / p.cost * 100)}</div></td></tr>`;
+  const glTable = (rows, empty) => `<table><tr><th>Product</th><th class="num">Cost/ea</th><th class="num">Value/ea @${valuePct()}%</th><th class="num">Unrealized</th></tr>${rows.map(glRow).join('') || `<tr><td colspan="4" class="empty">${empty}</td></tr>`}</table>`;
+  const m30 = withVal.map(i => ({i, c: changeFor(i, 30)})).filter(x => x.c && Math.abs(x.c.abs) > 0.005);
+  const up30 = m30.filter(x => x.c.abs > 0).sort((a, b) => b.c.abs * onHand(b.i) - a.c.abs * onHand(a.i)).slice(0, 8), down30 = m30.filter(x => x.c.abs < 0).sort((a, b) => a.c.abs * onHand(a.i) - b.c.abs * onHand(b.i)).slice(0, 8);
+  const mvRow = ({i, c}) => `<tr><td>${esc(displayName(i))}<div class="sub">${onHand(i)} on hand</div></td><td class="num">${money(marketPrice(i))}</td><td class="num ${c.abs >= 0 ? 'good' : 'bad'}">${c.abs >= 0 ? '+' : ''}${money(c.abs)}${c.pct != null ? ` (${pct(c.pct)})` : ''}</td><td class="num ${c.abs >= 0 ? 'good' : 'bad'}">${c.abs >= 0 ? '+' : ''}${money(c.abs * onHand(i))}</td></tr>`;
+  const mvTable = (rows, empty) => `<table><tr><th>Product</th><th class="num">Market</th><th class="num">30d change</th><th class="num">On position</th></tr>${rows.map(mvRow).join('') || `<tr><td colspan="4" class="empty">${empty}</td></tr>`}</table>`;
   const fx = it => facetsOf(it);
   $('view_stats').innerHTML = `
     <div class="tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
@@ -1695,6 +1704,14 @@ function renderStats() {
       <div class="panel"><div class="subh">P&amp;L by day</div><div class="sub" style="margin:-4px 0 8px">Every action that day, this book. Net profit is against cost, Txn P&amp;L against value at ${valuePct()}%; openings kept apart.</div>${dayTable()}</div>
     </div>
     ${valueChart(items)}
+    <div class="two">
+      <div class="panel"><div class="subh">Biggest gainers</div><div class="sub" style="margin:-4px 0 8px">Unrealized: what the position is worth at ${valuePct()}% minus what it cost. Click Cards and sort by Gain for the full list.</div>${glTable(gainers, 'Nothing above cost yet.')}</div>
+      <div class="panel"><div class="subh">Biggest losers</div><div class="sub" style="margin:-4px 0 8px">Same measure, the other way. These are the cards carried above what they would fetch today.</div>${glTable(losers, 'Nothing under water.')}</div>
+    </div>
+    <div class="two">
+      <div class="panel"><div class="subh">Up the most in 30 days</div>${mvTable(up30, 'No 30-day history yet.')}</div>
+      <div class="panel"><div class="subh">Down the most in 30 days</div>${mvTable(down30, 'No 30-day history yet.')}</div>
+    </div>
     <div class="two">
       <div class="panel"><div class="subh">Top holdings</div><table><tr><th>Product</th><th class="num">Qty</th><th class="num">Market</th><th class="num">Value @${valuePct()}%</th></tr>${top.map(i => `<tr><td>${esc(displayName(i))}<div class="sub">${esc(i.market?.setName || i.category || '')}</div></td><td class="num">${onHand(i)}</td><td class="num">${money(marketPrice(i))}</td><td class="num">${money(onHand(i) * unitValue(i))}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nothing priced yet.</td></tr>'}</table></div>
       <div class="panel"><div class="subh">Biggest movers (since last snapshot)</div><table><tr><th>Product</th><th class="num">Market</th><th class="num">Change</th><th class="num">On position</th></tr>${movers.map(({i, c}) => `<tr><td>${esc(displayName(i))}</td><td class="num">${money(marketPrice(i))}</td><td class="num ${c.abs >= 0 ? 'good' : 'bad'}">${c.abs >= 0 ? '+' : ''}${money(c.abs)}${c.pct != null ? ` (${pct(c.pct)})` : ''}</td><td class="num ${c.abs >= 0 ? 'good' : 'bad'}">${c.abs >= 0 ? '+' : ''}${money(c.abs * onHand(i))}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No price history yet — prices are recorded on each refresh.</td></tr>'}</table></div>
