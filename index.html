@@ -1441,8 +1441,9 @@ function buildTxns(scope) {
 }
 // ---------- wishlist: a set browser with its own sidebar; click a card to want it; the list lives in settings.wishlist ----------
 const WISH_CATS = [[3, 'Pokémon'], [89, 'Riftbound'], [68, 'One Piece'], [1, 'Magic'], [20, 'Weiss Schwarz'], [85, 'Pokémon (Japan)']];
-const WISH = {cat: 3, group: null, sets: [], cards: [], mode: 'set', loading: '', booted: false, dens: 'm', f: {own: '', rarity: new Set(), printing: new Set(), type: new Set(), color: new Set(), variant: new Set()}};
-const FACET_ROWS = [['rarity', 'Rarity'], ['printing', 'Printing'], ['type', 'Type'], ['color', 'Colour'], ['variant', 'Variant']];
+const WISH = {cat: 3, group: null, sets: [], cards: [], mode: 'set', loading: '', booted: false, dens: 'm', f: {own: '', kind: new Set(['Cards']), rarity: new Set(), printing: new Set(), type: new Set(), color: new Set(), variant: new Set()}};  // sealed product hides until asked for
+const FACET_ROWS = [['kind', 'Kind'], ['rarity', 'Rarity'], ['printing', 'Printing'], ['type', 'Type'], ['color', 'Colour'], ['variant', 'Variant']];
+const kindOf = c => (c.num || c.rarity) && !/booster (box|bundle|pack|case)|elite trainer|\bcase\b|blister|collection box|\btin\b|display\b|deck set|premium collection/i.test(c.name || '') ? 'Cards' : 'Sealed';  // singles carry a number or rarity; boxes, blisters, tins and cases do not
 const PK = c => c.cat === 3 || c.cat === 85;
 function printingOf(c) {  // the printing family, the way the market index splits them
   const n = c.name || '', num = String(c.num || ''), r = c.rarity || '';
@@ -1472,27 +1473,29 @@ function typeOf(c) {  // card type: Riftbound Card Type, Pokémon kind (with tra
 }
 function colorOf(c) { const d = c.d || ''; if (PK(c)) { return /^Trainer|Energy/i.test(c.t || '') ? [] : c.t ? [c.t] : []; } return d ? d.split(/\s*[;\/]\s*/).filter(Boolean) : []; }
 function variantOf(c) { if (!PK(c)) return []; const m = (c.name || '').match(/\b(ex|V|VMAX|VSTAR|GX|EX|BREAK|Prime|LV\.X|Radiant|Mega|Tera|Shiny)\b/g); return m ? [...new Set(m)] : ['Regular']; }
-function facetsFor(c) { return {rarity: c.rarity && c.rarity !== 'Code Card' ? [c.rarity] : [], printing: [printingOf(c)].filter(Boolean), type: typeOf(c).split(';').map(x => x.trim()).filter(Boolean), color: colorOf(c).filter(x => !/^none$/i.test(x)), variant: variantOf(c)}; }
+function facetsFor(c) { return {kind: [kindOf(c)], rarity: c.rarity && c.rarity !== 'Code Card' ? [c.rarity] : [], printing: [printingOf(c)].filter(Boolean), type: typeOf(c).split(';').map(x => x.trim()).filter(Boolean), color: colorOf(c).filter(x => !/^none$/i.test(x)), variant: variantOf(c)}; }
 function wishChip(row, v) { const f = WISH.f[row]; if (v === '') f.clear(); else if (f.has(v)) f.delete(v); else f.add(v); renderWish(); }
 function wishOwn(v) { WISH.f.own = v; renderWish(); }
-function wishClearFilters() { WISH.f.own = ''; for (const [k] of FACET_ROWS) WISH.f[k].clear(); $('w_q').value = ''; $('w_min').value = ''; $('w_max').value = ''; renderWish(); }
+function wishClearFilters() { WISH.f.own = ''; for (const [k] of FACET_ROWS) WISH.f[k].clear(); WISH.f.kind.add('Cards'); $('w_q').value = ''; $('w_min').value = ''; $('w_max').value = ''; renderWish(); }
 function ownOk(c, own) { const tot = c.own.personal + c.own.business + c.own.decks; return own === '' || (own === 'nopc' && c.own.personal === 0) || (own === 'pc' && c.own.personal > 0) || (own === 'none' && tot === 0) || (own === 'any' && tot > 0) || (own === 'wish' && !!c.wish) || (own === 'nowish' && !c.wish); }
 function renderChips(rows, setMode) {  // chip rows from what the cards actually are; counts are within the current ownership filter
   const base = rows.filter(c => ownOk(c, WISH.f.own));
   const ownCounts = {'': rows.length, nopc: rows.filter(c => !c.own.personal).length, pc: rows.filter(c => c.own.personal).length, wish: rows.filter(c => c.wish).length, nowish: rows.filter(c => !c.wish).length, none: rows.filter(c => !(c.own.personal + c.own.business + c.own.decks)).length};
   const ownRow = [['', 'All'], ['nopc', 'Not in collection'], ['pc', 'In collection'], ['wish', 'Wanted'], ['nowish', 'Not wanted'], ['none', 'Not owned anywhere']].filter(([k]) => setMode || (k !== 'nowish' && k !== 'wish'));
   let h = `<div class="chiprow"><span class="lbl">Show</span>${ownRow.map(([k, l]) => `<button class="chip ${WISH.f.own === k ? 'on' : ''}" onclick="wishOwn('${k}')">${l}<b>${ownCounts[k]}</b></button>`).join('')}</div>`;
-  const any = !!WISH.f.own || FACET_ROWS.some(([k]) => WISH.f[k].size) || $('w_q').value || $('w_min').value || $('w_max').value;
+  const any = !!WISH.f.own || FACET_ROWS.some(([k]) => k !== 'kind' && WISH.f[k].size) || !(WISH.f.kind.size === 1 && WISH.f.kind.has('Cards')) || $('w_q').value || $('w_min').value || $('w_max').value;
   for (const [k, label] of FACET_ROWS) {
     const cnt = new Map(); for (const c of base) for (const v of c.fx[k]) cnt.set(v, (cnt.get(v) || 0) + 1);
-    if (cnt.size < 2 && !WISH.f[k].size) continue;
+    if (k === 'kind' && !setMode) continue;
+    if (cnt.size < 2 && !WISH.f[k].size && k !== 'kind') continue;
+    if (k === 'kind' && cnt.size < 2 && !cnt.has('Sealed')) continue;
     const vals = [...cnt.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
     h += `<div class="chiprow"><span class="lbl">${label}</span><button class="chip ${WISH.f[k].size ? '' : 'on'}" onclick="wishChip('${k}', '')">All</button>${vals.map(([v, n]) => `<button class="chip ${WISH.f[k].has(v) ? 'on' : ''}" onclick="wishChip('${k}', ${JSON.stringify(v).replace(/"/g, '&quot;')})">${esc(v)}<b>${n}</b></button>`).join('')}</div>`;
   }
   if (any) h += `<div class="chiprow"><button class="chip clear" onclick="wishClearFilters()">✕ Clear filters</button></div>`;
   $('w_chips').innerHTML = h;
 }
-function facetOk(c) { return FACET_ROWS.every(([k]) => !WISH.f[k].size || c.fx[k].some(v => WISH.f[k].has(v))); }
+function facetOk(c, setMode = true) { return FACET_ROWS.every(([k]) => (k === 'kind' && !setMode) || !WISH.f[k].size || c.fx[k].some(v => WISH.f[k].has(v))); }
 const wishlist = () => ((DOC.settings ||= {}).wishlist ||= []);
 window.toast = window.toast || (msg => { let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 14px;z-index:90;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.4)'; document.body.appendChild(t); } t.textContent = msg; t.style.display = ''; clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1600); });
 const wishBy = () => new Map(wishlist().map(w => [w.pid, w]));
@@ -1580,9 +1583,10 @@ function renderWish() {
     if (WISH.loading) { $('w_head').innerHTML = ''; $('wishgrid').innerHTML = `<div class="empty" style="grid-column:1/-1">Loading ${WISH.loading}…</div>`; return; }
     const set = WISH.sets.find(s => s.id === +WISH.group);
     const all = WISH.cards.filter(c => c.r !== 'Code Card').map(c => { const x = {pid: c.id, cat: WISH.cat, name: c.n, num: c.num, rarity: c.r, t: c.t || '', d: c.d || '', price: c.p, pf: c.pf, own: om[c.id] || {personal: 0, business: 0, decks: 0}, wish: wb.get(c.id) || null}; x.fx = facetsFor(x); return x; });
-    const have = all.filter(c => c.own.personal > 0).length, wanted = all.filter(c => c.wish).length, need = all.filter(c => c.wish && !c.own.personal).length, needMkt = all.filter(c => c.wish && !c.own.personal).reduce((a, c) => a + (c.price || 0), 0);
-    $('w_head').innerHTML = set ? `<div class="wtitle"><h2>${esc(set.name)}</h2><span class="sub">${esc(monthName(set.date))}${set.date ? ' · ' : ''}${all.length} cards</span></div>
-      <div class="wstats"><div><b class="good">${have}</b> of ${all.length} in the collection</div><div class="bar"><i style="width:${all.length ? Math.round(have / all.length * 100) : 0}%"></i></div>
+    const cardsOnly = all.filter(c => c.fx.kind[0] === 'Cards');
+    const have = cardsOnly.filter(c => c.own.personal > 0).length, wanted = all.filter(c => c.wish).length, need = all.filter(c => c.wish && !c.own.personal).length, needMkt = all.filter(c => c.wish && !c.own.personal).reduce((a, c) => a + (c.price || 0), 0);
+    $('w_head').innerHTML = set ? `<div class="wtitle"><h2>${esc(set.name)}</h2><span class="sub">${esc(monthName(set.date))}${set.date ? ' · ' : ''}${cardsOnly.length} cards${all.length > cardsOnly.length ? ` + ${all.length - cardsOnly.length} sealed` : ''}</span></div>
+      <div class="wstats"><div><b class="good">${have}</b> of ${cardsOnly.length} in the collection</div><div class="bar"><i style="width:${cardsOnly.length ? Math.round(have / cardsOnly.length * 100) : 0}%"></i></div>
       <div><b class="pink">♥ ${wanted}</b> wanted · ${need} still to get${need ? ` · ${money(needMkt)} at market, ${money(needMkt * valueRate())} at ${valuePct()}%` : ''}</div></div>` : '';
     renderChips(all, true);
     const q = norm($('w_q').value), min = +$('w_min').value || 0, max = +$('w_max').value || 0;
@@ -1594,7 +1598,7 @@ function renderWish() {
     const q = norm($('w_q').value), onlyNeed = $('w_need').checked, min = +$('w_min').value || 0, max = +$('w_max').value || 0;
     const allW = wishlist().map(w => { const o = om[w.pid] || {personal: 0, business: 0, decks: 0}; const x = {...w, own: o, wish: w, need: Math.max(0, (w.qty || 1) - o.personal)}; x.fx = facetsFor(x); return x; });
     renderChips(allW, false);
-    let rows = allW.filter(w => (!q || norm(w.name + ' ' + w.set + ' ' + w.num + ' ' + (w.rarity || '')).includes(q)) && (!onlyNeed || w.need > 0) && ownOk(w, WISH.f.own) && facetOk(w) && (!min || (w.price ?? 0) >= min) && (!max || (w.price ?? 0) <= max));
+    let rows = allW.filter(w => (!q || norm(w.name + ' ' + w.set + ' ' + w.num + ' ' + (w.rarity || '')).includes(q)) && (!onlyNeed || w.need > 0) && ownOk(w, WISH.f.own) && facetOk(w, false) && (!min || (w.price ?? 0) >= min) && (!max || (w.price ?? 0) <= max));
     wishSorted(rows, k);
     const all = wishlist(), allNeed = all.reduce((a, w) => a + Math.max(0, (w.qty || 1) - (om[w.pid]?.personal || 0)), 0), needMkt = rows.reduce((a, w) => a + w.need * (w.price || 0), 0), haveN = all.filter(w => (om[w.pid]?.personal || 0) >= (w.qty || 1)).length;
     $('count').textContent = `${rows.length} of ${all.length} wanted`;
