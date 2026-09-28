@@ -5,7 +5,7 @@
 // GET  /market/price?ids=1,2,3    -> fresh market price per TCGplayer product id
 // GET  /catalog/riftbound         -> every Riftbound printing (tcgcsv feed), cached in KV for 20h, for type-ahead adds
 // GET  /catalog/sets?cat=3         -> the sets of a TCGplayer category (3 Pokémon, 89 Riftbound, 68 One Piece, 1 Magic, 20 Weiss, 85 Pokémon Japan), cached 24h
-// GET  /catalog/set?cat=3&group=N  -> every card in one set with its Normal (and Foil) market price, cached 20h; the wishlist browser
+// GET  /catalog/set?cat=3&group=N  -> every card in one set with its Normal (and Foil) market price, rarity, card type (t), colour/domain (d), stage/subtype (st); cached 20h; the wishlist browser
 
 const EMPTY = '{"rev":0,"items":[]}';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
@@ -79,7 +79,7 @@ async function catalogSets(env, cat) {
   return doc;
 }
 async function catalogSet(env, cat, group) {
-  const key = 'catalog:set:' + cat + ':' + group, cached = await env.DATA.get(key, 'json');
+  const key = 'catalog:set:v2:' + cat + ':' + group, cached = await env.DATA.get(key, 'json');  // v2: card type + colour/domain fields
   if (cached && Date.now() - cached.at < CATALOG_TTL) return cached;
   const [pr, px] = await Promise.all([tcgcsv(cat + '/' + group + '/products'), tcgcsv(cat + '/' + group + '/prices')]);
   const price = {};  // Normal wins over Foil (TCGplayer's product price is the Normal one); a single printing keeps whatever it has
@@ -87,7 +87,7 @@ async function catalogSet(env, cat, group) {
   const products = pr.map((p) => {
     const ext = Object.fromEntries((p.extendedData || []).map((e) => [e.name, e.value])), e = price[p.productId] || {};
     const subs = Object.keys(e), normal = e.Normal ?? e.Holofoil ?? e[subs[0]] ?? null;
-    return { id: p.productId, n: p.name, num: ext.Number || '', r: ext.Rarity || '', p: normal, pf: e.Foil ?? e['Reverse Holofoil'] ?? null, subs, url: p.url || null };
+    return { id: p.productId, n: p.name, num: ext.Number || '', r: ext.Rarity || '', t: ext['Card Type'] || ext.CardType || '', d: ext.Domain || ext.Color || '', st: ext.Stage || ext.Subtypes || '', p: normal, pf: e.Foil ?? e['Reverse Holofoil'] ?? null, subs, url: p.url || null };
   }).filter((p) => !/^Code Card/i.test(p.n));
   const doc = { at: Date.now(), cat, group, products };
   await env.DATA.put(key, JSON.stringify(doc));

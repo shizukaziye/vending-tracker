@@ -233,7 +233,11 @@ footer .note{font-size:12px;color:var(--dim)}
 .wishhead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:10px}
 .wtitle h2{margin:0;font-size:22px;line-height:1.15}.wtitle .sub{display:block;margin-top:2px}
 .wstats{font-size:13px;color:var(--dim);min-width:260px}.wstats .bar{width:100%;max-width:320px;margin:4px 0 6px}.wstats .bar i{display:block;height:100%;background:var(--good)}.wstats b{color:var(--text)}.wstats b.pink,.pink{color:#f5a3c7}
-.wishtools{margin-bottom:10px}
+.wishtools{margin-bottom:8px}
+.chips{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.chiprow{display:flex;flex-wrap:wrap;gap:5px;align-items:center}.chiprow .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);width:64px;flex:none}
+.chip{padding:3px 9px;font-size:12.5px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--dim)}.chip b{font-weight:600;margin-left:5px;color:var(--dim);opacity:.8}.chip:hover{border-color:#4a5570;color:var(--text)}.chip.on{background:#123145;border-color:#1d5f8a;color:var(--accent)}.chip.on b{color:var(--accent)}.chip.clear{color:var(--warn);border-color:#5a4a2a}
+.wimg{background:linear-gradient(135deg,#0b0e14,#141a26)}.wimg img{opacity:0;transition:opacity .25s}.wimg img.ld{opacity:1}
 .wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}.wgrid.s{grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px}.wgrid.l{grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
 .wgroup{grid-column:1/-1;display:flex;align-items:baseline;gap:12px;padding:12px 2px 2px;border-bottom:1px solid var(--border)}.wgroup .n{font-weight:700;font-size:15px}.wgroup:first-child{padding-top:0}
 .wcard{background:var(--panel);border:2px solid var(--border);border-radius:12px;padding:8px;cursor:pointer;min-width:0;display:flex;flex-direction:column;gap:3px;transition:transform .08s,border-color .12s,box-shadow .12s;user-select:none}
@@ -390,21 +394,14 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:rgba(255,255,255,.035)}
             <section class="wishmain">
               <div class="wishhead" id="w_head"></div>
               <div class="toolbar wishtools">
-                <span id="w_settools" style="display:contents">
-                  <input id="w_q" placeholder="Filter cards…" oninput="renderWish()" style="min-width:150px">
-                  <select id="w_rar" onchange="renderWish()"><option value="">All rarities</option></select>
-                  <select id="w_own" onchange="renderWish()"><option value="">Owned or not</option><option value="nopc">Not in my collection</option><option value="pc">In my collection</option><option value="none">Not owned anywhere</option><option value="any">Owned somewhere</option><option value="wish">On the wishlist</option><option value="nowish">Not on the wishlist</option></select>
-                  <input id="w_min" type="number" placeholder="min $" step="0.01" oninput="renderWish()" style="width:74px"><input id="w_max" type="number" placeholder="max $" step="0.01" oninput="renderWish()" style="width:74px">
-                  <button onclick="wishAddShown()" title="add every card shown">Want all shown</button>
-                </span>
-                <span id="w_listtools" style="display:none">
-                  <input id="w_lq" placeholder="Filter wishlist…" oninput="renderWish()" style="min-width:150px">
-                  <label class="chk"><input type="checkbox" id="w_need" onchange="renderWish()">only what I still need</label>
-                  <button id="w_refresh" onclick="wishRefreshPrices()">Refresh prices</button>
-                </span>
+                <input id="w_q" placeholder="Filter cards…" oninput="renderWish()" style="min-width:150px">
+                <input id="w_min" type="number" placeholder="min $" step="0.01" oninput="renderWish()" style="width:74px"><input id="w_max" type="number" placeholder="max $" step="0.01" oninput="renderWish()" style="width:74px">
+                <span id="w_settools" style="display:contents"><button onclick="wishAddShown()" title="add every card shown">Want all shown</button></span>
+                <span id="w_listtools" style="display:none"><label class="chk"><input type="checkbox" id="w_need" onchange="renderWish()">only what I still need</label><button id="w_refresh" onclick="wishRefreshPrices()">Refresh prices</button></span>
                 <select id="w_sort" onchange="renderWish()"><option value="num">Set order</option><option value="name">Name</option><option value="phi">Price high → low</option><option value="plo">Price low → high</option><option value="rarity">Rarity</option><option value="pc">Owned in PC</option><option value="need">Still needed</option><option value="added">Recently added</option></select>
                 <div class="dens" id="w_dens" title="Card size"><button data-d="s" onclick="wishSetDens('s')">S</button><button data-d="m" class="on" onclick="wishSetDens('m')">M</button><button data-d="l" onclick="wishSetDens('l')">L</button></div>
               </div>
+              <div class="chips" id="w_chips"></div>
               <div class="wgrid" id="wishgrid"></div>
             </section>
           </div>
@@ -1444,7 +1441,58 @@ function buildTxns(scope) {
 }
 // ---------- wishlist: a set browser with its own sidebar; click a card to want it; the list lives in settings.wishlist ----------
 const WISH_CATS = [[3, 'Pokémon'], [89, 'Riftbound'], [68, 'One Piece'], [1, 'Magic'], [20, 'Weiss Schwarz'], [85, 'Pokémon (Japan)']];
-const WISH = {cat: 3, group: null, sets: [], cards: [], mode: 'set', loading: '', booted: false, dens: 'm'};
+const WISH = {cat: 3, group: null, sets: [], cards: [], mode: 'set', loading: '', booted: false, dens: 'm', f: {own: '', rarity: new Set(), printing: new Set(), type: new Set(), color: new Set(), variant: new Set()}};
+const FACET_ROWS = [['rarity', 'Rarity'], ['printing', 'Printing'], ['type', 'Type'], ['color', 'Colour'], ['variant', 'Variant']];
+const PK = c => c.cat === 3 || c.cat === 85;
+function printingOf(c) {  // the printing family, the way the market index splits them
+  const n = c.name || '', num = String(c.num || ''), r = c.rarity || '';
+  if (c.cat === 89) {
+    if (/\(Signature\)/.test(n) || /\*/.test(num)) return 'Signature';
+    if (/\(Overnumbered\)/.test(n)) return 'Overnumbered';
+    if (/\(Alternate Art\)/.test(n) || /^R0\da$/.test(num) || /^\d+a\//.test(num)) return 'Alt art';
+    if (/\((Metal|Top 8|Champion|Prize Wall|Best Of|Vendetta|Full Art)\)|\(R0\d[bc]\)|^R0\d[bc]$/.test(n + ' ' + num) || r === 'Promo' || /b\/\d+$/.test(num)) return 'Promo';
+    if (/\(Starter\)/.test(n)) return 'Starter';
+    return 'Base';
+  }
+  if (PK(c)) {
+    // rarity already says IR / SIR / hyper for Pokémon; printing only separates stamped and reverse variants
+    if (/\((Reverse|Holo|Master Ball|Poké Ball|Pokeball|Cosmos|Stamped|Staff|Prerelease)[^)]*\)/i.test(n)) return 'Stamped / variant';
+    return 'Regular';
+  }
+  if (c.cat === 68) { if (/\(Manga\)/i.test(n)) return 'Manga'; if (/\(SP\)/.test(n)) return 'SP'; if (/\(Alternate Art\)|\(Parallel\)/i.test(n)) return 'Alt art'; if (/Treasure|\(Gold\)/i.test(n)) return 'Treasure'; return 'Base'; }
+  if (c.cat === 20) { if (/\bSSP\b|\(SSP\)/.test(n)) return 'SSP'; if (/\bSP\b|\(SP\)/.test(n)) return 'SP'; if (/\bRRR\b|\bSR\b|\bSEC\b/.test(r)) return 'Foil rare'; return 'Base'; }
+  if (c.cat === 1) { const m = n.match(/\((Foil Etched|Borderless|Extended Art|Showcase|Retro Frame|Serialized)\)/i); return m ? m[1] : 'Regular'; }
+  return '';
+}
+function typeOf(c) {  // card type: Riftbound Card Type, Pokémon kind (with trainer subtype), One Piece / Weiss / Magic type
+  const t = c.t || '';
+  if (PK(c)) { if (/^Trainer/i.test(t)) return t.replace(/\s*-\s*/, ' · '); if (/Energy/i.test(t) || /Energy$/.test(c.name || '')) return 'Energy'; return t ? 'Pokémon' : ''; }
+  if (c.cat === 1) return t.split(/\s*[—-]\s*/)[0] || '';
+  return t;
+}
+function colorOf(c) { const d = c.d || ''; if (PK(c)) { return /^Trainer|Energy/i.test(c.t || '') ? [] : c.t ? [c.t] : []; } return d ? d.split(/\s*[;\/]\s*/).filter(Boolean) : []; }
+function variantOf(c) { if (!PK(c)) return []; const m = (c.name || '').match(/\b(ex|V|VMAX|VSTAR|GX|EX|BREAK|Prime|LV\.X|Radiant|Mega|Tera|Shiny)\b/g); return m ? [...new Set(m)] : ['Regular']; }
+function facetsFor(c) { return {rarity: c.rarity && c.rarity !== 'Code Card' ? [c.rarity] : [], printing: [printingOf(c)].filter(Boolean), type: typeOf(c).split(';').map(x => x.trim()).filter(Boolean), color: colorOf(c).filter(x => !/^none$/i.test(x)), variant: variantOf(c)}; }
+function wishChip(row, v) { const f = WISH.f[row]; if (v === '') f.clear(); else if (f.has(v)) f.delete(v); else f.add(v); renderWish(); }
+function wishOwn(v) { WISH.f.own = v; renderWish(); }
+function wishClearFilters() { WISH.f.own = ''; for (const [k] of FACET_ROWS) WISH.f[k].clear(); $('w_q').value = ''; $('w_min').value = ''; $('w_max').value = ''; renderWish(); }
+function ownOk(c, own) { const tot = c.own.personal + c.own.business + c.own.decks; return own === '' || (own === 'nopc' && c.own.personal === 0) || (own === 'pc' && c.own.personal > 0) || (own === 'none' && tot === 0) || (own === 'any' && tot > 0) || (own === 'wish' && !!c.wish) || (own === 'nowish' && !c.wish); }
+function renderChips(rows, setMode) {  // chip rows from what the cards actually are; counts are within the current ownership filter
+  const base = rows.filter(c => ownOk(c, WISH.f.own));
+  const ownCounts = {'': rows.length, nopc: rows.filter(c => !c.own.personal).length, pc: rows.filter(c => c.own.personal).length, wish: rows.filter(c => c.wish).length, nowish: rows.filter(c => !c.wish).length, none: rows.filter(c => !(c.own.personal + c.own.business + c.own.decks)).length};
+  const ownRow = [['', 'All'], ['nopc', 'Not in collection'], ['pc', 'In collection'], ['wish', 'Wanted'], ['nowish', 'Not wanted'], ['none', 'Not owned anywhere']].filter(([k]) => setMode || (k !== 'nowish' && k !== 'wish'));
+  let h = `<div class="chiprow"><span class="lbl">Show</span>${ownRow.map(([k, l]) => `<button class="chip ${WISH.f.own === k ? 'on' : ''}" onclick="wishOwn('${k}')">${l}<b>${ownCounts[k]}</b></button>`).join('')}</div>`;
+  const any = !!WISH.f.own || FACET_ROWS.some(([k]) => WISH.f[k].size) || $('w_q').value || $('w_min').value || $('w_max').value;
+  for (const [k, label] of FACET_ROWS) {
+    const cnt = new Map(); for (const c of base) for (const v of c.fx[k]) cnt.set(v, (cnt.get(v) || 0) + 1);
+    if (cnt.size < 2 && !WISH.f[k].size) continue;
+    const vals = [...cnt.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+    h += `<div class="chiprow"><span class="lbl">${label}</span><button class="chip ${WISH.f[k].size ? '' : 'on'}" onclick="wishChip('${k}', '')">All</button>${vals.map(([v, n]) => `<button class="chip ${WISH.f[k].has(v) ? 'on' : ''}" onclick="wishChip('${k}', ${JSON.stringify(v).replace(/"/g, '&quot;')})">${esc(v)}<b>${n}</b></button>`).join('')}</div>`;
+  }
+  if (any) h += `<div class="chiprow"><button class="chip clear" onclick="wishClearFilters()">✕ Clear filters</button></div>`;
+  $('w_chips').innerHTML = h;
+}
+function facetOk(c) { return FACET_ROWS.every(([k]) => !WISH.f[k].size || c.fx[k].some(v => WISH.f[k].has(v))); }
 const wishlist = () => ((DOC.settings ||= {}).wishlist ||= []);
 window.toast = window.toast || (msg => { let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 14px;z-index:90;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.4)'; document.body.appendChild(t); } t.textContent = msg; t.style.display = ''; clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1600); });
 const wishBy = () => new Map(wishlist().map(w => [w.pid, w]));
@@ -1482,9 +1530,9 @@ async function wishLoadSet(id) {
 }
 function renderWishSets() {  // the sidebar: sets of the chosen game, newest first, with how many cards of each are wanted
   const q = norm($('w_setq').value), wl = wishlist(), want = {}; for (const w of wl) if (w.cat === WISH.cat) want[w.group] = (want[w.group] || 0) + 1;
-  const sets = WISH.sets.slice().sort((a, b) => b.id - a.id).filter(s => !q || norm(s.name + ' ' + (s.abbr || '')).includes(q));  // TCGplayer group ids grow with release; the feed's dates are unreliable for old promo sets
+  const sets = WISH.sets.filter(s => !q || norm(s.name + ' ' + (s.abbr || '')).includes(q));
   $('w_sets').innerHTML = sets.map(s => `<div class="wset ${WISH.mode === 'set' && s.id === +WISH.group ? 'on' : ''}" onclick="wishLoadSet(${s.id})"><span class="n">${esc(s.name)}</span><span class="d">${esc(monthName(s.date))}</span>${want[s.id] ? `<span class="w" title="cards wanted from this set">♥ ${want[s.id]}</span>` : ''}</div>`).join('') || '<div class="empty">No set matches.</div>';
-  $('w_setsel').innerHTML = WISH.sets.slice().sort((a, b) => b.id - a.id).map(s => `<option value="${s.id}" ${s.id === +WISH.group ? 'selected' : ''}>${esc(s.name)}${want[s.id] ? ` (♥ ${want[s.id]})` : ''}</option>`).join('');
+  $('w_setsel').innerHTML = WISH.sets.map(s => `<option value="${s.id}" ${s.id === +WISH.group ? 'selected' : ''}>${esc(s.name)}${want[s.id] ? ` (♥ ${want[s.id]})` : ''}</option>`).join('');
   $('w_mycount').textContent = wl.length;
   $('w_listmode').classList.toggle('on', WISH.mode === 'list');
 }
@@ -1493,7 +1541,7 @@ function wishSetDens(d) { WISH.dens = d; wishRemember(); renderWish(); }
 function wishToggle(pid) {  // click a card: want it, click again: drop it
   const l = wishlist(), i = l.findIndex(w => w.pid === pid);
   if (i >= 0) { l.splice(i, 1); toast('Removed from the wishlist'); }
-  else { const c = WISH.cards.find(x => x.id === pid); if (!c) return; const set = WISH.sets.find(s => s.id === +WISH.group); l.push({pid, cat: WISH.cat, group: WISH.group, set: set?.name || '', name: c.n, num: c.num || '', rarity: c.r || '', qty: 1, price: c.p ?? null, image: imgOf(pid), addedAt: today()}); toast('Added ' + c.n); }
+  else { const c = WISH.cards.find(x => x.id === pid); if (!c) return; const set = WISH.sets.find(s => s.id === +WISH.group); l.push({pid, cat: WISH.cat, group: WISH.group, set: set?.name || '', name: c.n, num: c.num || '', rarity: c.r || '', t: c.t || '', d: c.d || '', qty: 1, price: c.p ?? null, image: imgOf(pid), addedAt: today()}); toast('Added ' + c.n); }
   markDirty();
 }
 function wishAddShown() { const wb = wishBy(); let n = 0; for (const c of WISH.shown || []) if (!wb.has(c.pid)) { wishToggle(c.pid); n++; } if (n) toast(`${n} card${n === 1 ? '' : 's'} added`); }
@@ -1515,7 +1563,7 @@ function wishSorted(rows, k) {
 function wishCard(c, foot) {  // one tile
   const inPc = c.own.personal > 0, elsewhere = c.own.business + c.own.decks;
   return `<div class="wcard ${c.wish ? 'wished' : ''} ${inPc ? 'havepc' : ''}" onclick="wishToggle(${c.pid})" title="${c.wish ? 'Click to take it off the wishlist' : 'Click to add it to the wishlist'}">
-    <div class="wimg"><img src="${esc(c.image || imgOf(c.pid))}" loading="lazy" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'ph', textContent: '?'}))">
+    <div class="wimg"><img src="${esc(c.image || imgOf(c.pid))}" loading="lazy" decoding="async" alt="" onload="this.classList.add('ld')" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'ph', textContent: '?'}))">
       <span class="heart">${c.wish ? '♥' : '♡'}</span>${inPc ? `<span class="pcb" title="in the personal collection">✓ ${c.own.personal > 1 ? '×' + c.own.personal : 'have'}</span>` : elsewhere ? `<span class="pcb biz" title="in business / decks, not the collection">${elsewhere} in stock</span>` : ''}</div>
     <div class="wname">${esc(c.name)}</div>
     <div class="wmeta"><span>${esc(c.num || '')}${c.rarity ? ' · ' + esc(c.rarity) : ''}</span><b>${c.price != null ? money(c.price) : '—'}</b></div>
@@ -1524,31 +1572,29 @@ function wishCard(c, foot) {  // one tile
 function renderWish() {
   if (!WISH.booted) { wishBoot(); return; }
   const setMode = WISH.mode === 'set';
-  $('w_settools').style.display = setMode ? '' : 'none'; $('w_listtools').style.display = setMode ? 'none' : '';
+  $('w_settools').style.display = setMode ? '' : 'none'; $('w_listtools').style.display = setMode ? 'none' : ''; $('w_q').placeholder = setMode ? 'Filter cards…' : 'Filter wishlist…';
   document.querySelectorAll('#w_dens button').forEach(b => b.classList.toggle('on', b.dataset.d === WISH.dens));
   $('wishgrid').className = 'wgrid ' + WISH.dens;
   const om = ownedMap(), wb = wishBy(), k = $('w_sort').value; wishRemember();
   if (setMode) {
     if (WISH.loading) { $('w_head').innerHTML = ''; $('wishgrid').innerHTML = `<div class="empty" style="grid-column:1/-1">Loading ${WISH.loading}…</div>`; return; }
     const set = WISH.sets.find(s => s.id === +WISH.group);
-    const rars = [...new Set(WISH.cards.map(c => c.r).filter(Boolean))].sort(); const keepR = $('w_rar').value;
-    $('w_rar').innerHTML = '<option value="">All rarities</option>' + rars.map(r => `<option value="${esc(r)}" ${r === keepR ? 'selected' : ''}>${esc(r)}</option>`).join('');
-    const all = WISH.cards.map(c => ({pid: c.id, name: c.n, num: c.num, rarity: c.r, price: c.p, pf: c.pf, own: om[c.id] || {personal: 0, business: 0, decks: 0}, wish: wb.get(c.id) || null}));
+    const all = WISH.cards.filter(c => c.r !== 'Code Card').map(c => { const x = {pid: c.id, cat: WISH.cat, name: c.n, num: c.num, rarity: c.r, t: c.t || '', d: c.d || '', price: c.p, pf: c.pf, own: om[c.id] || {personal: 0, business: 0, decks: 0}, wish: wb.get(c.id) || null}; x.fx = facetsFor(x); return x; });
     const have = all.filter(c => c.own.personal > 0).length, wanted = all.filter(c => c.wish).length, need = all.filter(c => c.wish && !c.own.personal).length, needMkt = all.filter(c => c.wish && !c.own.personal).reduce((a, c) => a + (c.price || 0), 0);
     $('w_head').innerHTML = set ? `<div class="wtitle"><h2>${esc(set.name)}</h2><span class="sub">${esc(monthName(set.date))}${set.date ? ' · ' : ''}${all.length} cards</span></div>
       <div class="wstats"><div><b class="good">${have}</b> of ${all.length} in the collection</div><div class="bar"><i style="width:${all.length ? Math.round(have / all.length * 100) : 0}%"></i></div>
       <div><b class="pink">♥ ${wanted}</b> wanted · ${need} still to get${need ? ` · ${money(needMkt)} at market, ${money(needMkt * valueRate())} at ${valuePct()}%` : ''}</div></div>` : '';
-    const q = norm($('w_q').value), rar = $('w_rar').value, own = $('w_own').value, min = +$('w_min').value || 0, max = +$('w_max').value || 0;
-    let rows = all.filter(c => (!q || norm(c.name + ' ' + (c.num || '') + ' ' + (c.rarity || '')).includes(q)) && (!rar || c.rarity === rar) &&
-      (own === '' || (own === 'pc' && c.own.personal > 0) || (own === 'nopc' && c.own.personal === 0) || (own === 'any' && (c.own.personal + c.own.business + c.own.decks) > 0) || (own === 'none' && (c.own.personal + c.own.business + c.own.decks) === 0) || (own === 'wish' && c.wish) || (own === 'nowish' && !c.wish)) &&
-      (!min || (c.price ?? 0) >= min) && (!max || (c.price ?? 0) <= max));
+    renderChips(all, true);
+    const q = norm($('w_q').value), min = +$('w_min').value || 0, max = +$('w_max').value || 0;
+    let rows = all.filter(c => (!q || norm(c.name + ' ' + (c.num || '') + ' ' + (c.rarity || '') + ' ' + c.t).includes(q)) && ownOk(c, WISH.f.own) && facetOk(c) && (!min || (c.price ?? 0) >= min) && (!max || (c.price ?? 0) <= max));
     wishSorted(rows, k); WISH.shown = rows;
     $('count').textContent = `${rows.length} of ${all.length} cards`;
     $('wishgrid').innerHTML = rows.length ? rows.map(c => wishCard(c)).join('') : '<div class="empty" style="grid-column:1/-1">No cards match.</div>';
   } else {
-    const q = norm($('w_lq').value), onlyNeed = $('w_need').checked;
-    let rows = wishlist().map(w => { const o = om[w.pid] || {personal: 0, business: 0, decks: 0}; return {...w, own: o, wish: w, need: Math.max(0, (w.qty || 1) - o.personal)}; })
-      .filter(w => (!q || norm(w.name + ' ' + w.set + ' ' + w.num).includes(q)) && (!onlyNeed || w.need > 0));
+    const q = norm($('w_q').value), onlyNeed = $('w_need').checked, min = +$('w_min').value || 0, max = +$('w_max').value || 0;
+    const allW = wishlist().map(w => { const o = om[w.pid] || {personal: 0, business: 0, decks: 0}; const x = {...w, own: o, wish: w, need: Math.max(0, (w.qty || 1) - o.personal)}; x.fx = facetsFor(x); return x; });
+    renderChips(allW, false);
+    let rows = allW.filter(w => (!q || norm(w.name + ' ' + w.set + ' ' + w.num + ' ' + (w.rarity || '')).includes(q)) && (!onlyNeed || w.need > 0) && ownOk(w, WISH.f.own) && facetOk(w) && (!min || (w.price ?? 0) >= min) && (!max || (w.price ?? 0) <= max));
     wishSorted(rows, k);
     const all = wishlist(), allNeed = all.reduce((a, w) => a + Math.max(0, (w.qty || 1) - (om[w.pid]?.personal || 0)), 0), needMkt = rows.reduce((a, w) => a + w.need * (w.price || 0), 0), haveN = all.filter(w => (om[w.pid]?.personal || 0) >= (w.qty || 1)).length;
     $('count').textContent = `${rows.length} of ${all.length} wanted`;

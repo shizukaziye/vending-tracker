@@ -101,8 +101,13 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     a ♥ count of cards wanted from each); the main pane shows every card in the picked set as a
     compact grid (image, number, rarity, TCGplayer market price) under a header with the set's
     completion (cards the personal collection holds) and what is wanted. Click a card to want it,
-    click again to drop it; ✓ marks cards the collection has. Filters (text, rarity, ownership,
-    price), sort, card size and "Want all shown" sit above the grid. "My wishlist" is the same
+    click again to drop it; ✓ marks cards the collection has. Filters are one-click chips with
+    counts, built from what the set holds: ownership, rarity, printing (Riftbound base / alt art /
+    overnumbered / signature / promo; Pokémon regular / IR / SIR / ultra / hyper / promo; One Piece
+    base / alt / SP / manga; Weiss SP / SSP; Magic showcase and friends), card type (Riftbound
+    unit / spell / gear / legend / rune / battlefield, Pokémon vs trainer subtype vs energy, One
+    Piece leader / character / event / stage), colour or domain, and Pokémon variant (ex, V, VMAX…);
+    plus a text filter, price range, sort, card size and "Want all shown". "My wishlist" is the same
     grid across sets, grouped by set with a to-get count and cost per group, quantity wanted and a
     price refresh. Saved with the document as `settings.wishlist`.
   - **Overview** also lists the biggest gainers and losers: one row per product position in the
