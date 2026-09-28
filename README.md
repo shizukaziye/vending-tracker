@@ -97,13 +97,14 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     A lot with category **Expense** (a vendor fee, an entry fee with nothing to show for it) is a
     single ledger row: the amount out, and the same amount as negative net profit and Txn P&L.
     Write it off with a $0 sale so it leaves stock; the ledger ignores that move.
-  - **Wishlist** tab: pick a game and a set and the page shows every card in it as a grid of
-    images (from the tcgcsv feed via the Worker, cached 20h) with the TCGplayer market price, a
-    PC ×n badge for cards the personal collection already holds, and a ♥ on wanted cards. Click a
-    card to want it, click again to drop it; sort and filter by text, rarity, ownership, wishlist
-    status or price, or "Want all shown". "My wishlist" is the same grid across sets with the
-    quantity wanted, what is still missing and its cost, plus a price refresh. Saved with the
-    document as `settings.wishlist`.
+  - **Wishlist** tab: a sidebar lists the sets of the chosen game (newest first, searchable, with
+    a ♥ count of cards wanted from each); the main pane shows every card in the picked set as a
+    compact grid (image, number, rarity, TCGplayer market price) under a header with the set's
+    completion (cards the personal collection holds) and what is wanted. Click a card to want it,
+    click again to drop it; ✓ marks cards the collection has. Filters (text, rarity, ownership,
+    price), sort, card size and "Want all shown" sit above the grid. "My wishlist" is the same
+    grid across sets, grouped by set with a to-get count and cost per group, quantity wanted and a
+    price refresh. Saved with the document as `settings.wishlist`.
   - **Overview** also lists the biggest gainers and losers: one row per product position in the
     book, unrealized gain = value at the valuation share minus the cost of what is on hand, with
     cost and value per unit; and the products up or down the most over 30 days (price change ×
