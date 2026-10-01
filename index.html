@@ -1007,14 +1007,13 @@ function renderOverview() {
     [sgn(t.unreal), 'Unrealized gain', `on ${money(t.cost - t.unpricedCost)} cost`],
     [sgn(t.month * valueRate()), '30d change', `7d ${t.week >= 0 ? '+' : ''}${money(t.week * valueRate())}`],
     [money(t.cost), 'Cost basis on hand', `${t.units} units · ${t.products} products`],
-    [money(t.spent), 'Total spent', 'all time, this book'],
     [money(t.incomingValue), `In transit @${valuePct()}%`, `${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
     [sgn(sp.Target.now), 'Target P&L', `bought-day ${sgn(sp.Target.then)} · ${sp.Target.n} orders`],
     [sgn(sp.Cardmarket.now), 'Cardmarket P&L', `bought-day ${sgn(sp.Cardmarket.then)} · ${sp.Cardmarket.n} orders`],
     [sgn(sp.Other.now), 'Other P&L', `everything else · ${sp.Other.n} rows${(() => { const e = sp.Other.rows.filter(r => r.type === 'expense').reduce((a, r) => a + (r.out || 0), 0); return e ? ` · expenses ${money(e)}` : ''; })()}`],
     ...(gr.n ? [[sgn(gr.net), 'Grading P&L', `${gr.n} card${gr.n === 1 ? '' : 's'} · uplift ${sgn(gr.up)} · fees ${money(gr.fee)}`]] : []),
   ];
-  const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit', 'Target', 'Cardmarket', 'Other', 'grading'];
+  const keys = ['value', 'unreal', 'month', 'cost', 'transit', 'Target', 'Cardmarket', 'Other', 'grading'];
   $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('') + gameBar() + regionBar();
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
 }
