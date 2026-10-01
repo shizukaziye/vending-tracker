@@ -1027,6 +1027,7 @@ function sourcePnl(items) {
   const out = {};
   for (const [k, rs] of Object.entries(b)) out[k] = {rows: rs, n: rs.length, paid: sum(rs.filter(r => r.type === 'purchase'), r => r.out), valNow: sum(rs, r => r.valNow), valThen: sum(rs, r => r.valThen),
     now: sum(rs, r => r.type === 'purchase' || r.dir === 'in' ? r.profit : r.pnl), then: sum(rs, r => r.pnl)};  // purchases: value now vs paid (then: value when bought); everything else: its Txn P&L
+  const g = gradingPnl(items); out.Other.grading = g.net; out.Other.now -= g.net;  // graded cards are valued graded, so their uplift net of fees would land here too; the Grading tile owns it
   return out;
 }
 
@@ -1109,7 +1110,7 @@ function explainTile(key) {
     const b = sourcePnl(items)[key], purchases = b.rows.filter(r => r.type === 'purchase' || r.dir === 'in'), rest = b.rows.filter(r => r.type !== 'purchase' && r.dir !== 'in');
     title = key + ' P&L';
     lines = key === 'Other'
-      ? [['Purchases from every other source: value @' + pctS + ' now − paid', sg(purchases.reduce((a, r) => a + (r.profit || 0), 0))], ['Expenses (supplies, table fees): money out with nothing in stock', sg(-rest.filter(r => r.type === 'expense').reduce((a, r) => a + (r.out || 0), 0))], ['Sales, gifts, transfers and trades: received − value @' + pctS + ' when they left', sg(rest.filter(r => r.type !== 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['Openings: contents − sealed value @' + pctS, sg(rest.filter(r => r.type === 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['= Other P&L', sg(b.now), 'total']]
+      ? [['Purchases from every other source: value @' + pctS + ' now − paid', sg(purchases.reduce((a, r) => a + (r.profit || 0), 0))], ['Expenses (supplies, table fees): money out with nothing in stock', sg(-rest.filter(r => r.type === 'expense').reduce((a, r) => a + (r.out || 0), 0))], ['− grading uplift net of fees (counted in the Grading P&L tile instead)', sg(-(b.grading || 0))], ['Sales, gifts, transfers and trades: received − value @' + pctS + ' when they left', sg(rest.filter(r => r.type !== 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['Openings: contents − sealed value @' + pctS, sg(rest.filter(r => r.type === 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['= Other P&L', sg(b.now), 'total']]
       : [[`${key} orders (dated up to today)`, b.n], ['Paid, tax included', money(b.paid)], [`Worth now: units × market × ${pctS}`, money(b.valNow)], [`= ${key} P&L`, sg(b.now), 'total'], [`Worth on the day bought (price history)`, money(b.valThen)], ['= bought-day P&L', sg(b.then)], ['Units bought are valued whether or not they have since sold or been opened; what happened after is in Other', '']];
     const rs = b.rows.slice().sort((a, b2) => (b2.date || '').localeCompare(a.date || ''));
     const [rows, more] = topN(rs, 40);
