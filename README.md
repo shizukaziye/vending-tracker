@@ -96,7 +96,12 @@ valued at a set share of TCGplayer market price (85% by default; change it in se
     a trade move can name the lots it brought in (`receivedIds`) and the row shows their images.
     A lot with category **Expense** (a vendor fee, an entry fee with nothing to show for it) is a
     single ledger row: the amount out, and the same amount as negative net profit and Txn P&L.
-    Write it off with a $0 sale so it leaves stock; the ledger ignores that move.
+    Write it off with a $0 sale so it leaves stock; the ledger ignores that move. Expenses land in the
+    Other P&L tile (and its breakdown lists them).
+  - **Grading P&L** tile (shows once a lot carries a `grading` record: `{fee, rawPrice, grader,
+    grade, order, date}`): graded value minus the raw price it had before grading, at the valuation
+    share, minus the fees. The fee also sits in the lot's cost, so this tile only isolates whether
+    grading paid off.
   - **Wishlist** tab: a sidebar lists the sets of the chosen game (newest first, searchable, with
     a ♥ count of cards wanted from each); the main pane shows every card in the picked set as a
     compact grid (image, number, rarity, TCGplayer market price) under a header with the set's

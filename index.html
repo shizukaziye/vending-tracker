@@ -993,9 +993,15 @@ function bookTotals(items) {
     saleProfit, tradeGain, realized: saleProfit + tradeGain, unreal: value - (cost - unpricedCost)};
 }
 const sgn = n => `<span class="${n > 0.005 ? 'good' : n < -0.005 ? 'bad' : 'dim'}">${n >= 0 ? '+' : ''}${money(n)}</span>`;
+// grading: what sending a card off added at the mark (graded value − raw value, × the valuation share) minus what the grading cost
+function gradingPnl(items) {
+  const rows = items.filter(it => it.grading && it.grading.rawPrice != null && onHand(it) > 0).map(it => { const n = onHand(it), up = n * ((marketPrice(it) || 0) - it.grading.rawPrice) * valueRate(), fee = n * (it.grading.fee || 0); return {it, n, raw: it.grading.rawPrice, now: marketPrice(it) || 0, up, fee, net: up - fee}; });
+  const sum = f => rows.reduce((a, r) => a + f(r), 0);
+  return {rows, n: rows.length, up: sum(r => r.up), fee: sum(r => r.fee), net: sum(r => r.net)};
+}
 function renderOverview() {
   const q = $('q').value.trim().toLowerCase(), filtered = Object.keys(state.f).length > 0 || q;
-  const ovItems = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))), t = bookTotals(ovItems), sp = sourcePnl(ovItems);
+  const ovItems = DOC.items.filter(it => inBook(it) && searchHit(it, q) && matchesFacets(facetsOf(it))), t = bookTotals(ovItems), sp = sourcePnl(ovItems), gr = gradingPnl(ovItems);
   const tiles = [
     [money(t.value), `Value @${valuePct()}%`, `market ${money(t.valueMkt)}${t.unpricedCost ? ` · ${money0(t.unpricedCost)} unpriced` : ''}`],
     [sgn(t.unreal), 'Unrealized gain', `on ${money(t.cost - t.unpricedCost)} cost`],
@@ -1005,9 +1011,10 @@ function renderOverview() {
     [money(t.incomingValue), `In transit @${valuePct()}%`, `${t.incomingUnits} units · ${money(t.incomingCost)} cost`],
     [sgn(sp.Target.now), 'Target P&L', `bought-day ${sgn(sp.Target.then)} · ${sp.Target.n} orders`],
     [sgn(sp.Cardmarket.now), 'Cardmarket P&L', `bought-day ${sgn(sp.Cardmarket.then)} · ${sp.Cardmarket.n} orders`],
-    [sgn(sp.Other.now), 'Other P&L', `everything else · ${sp.Other.n} rows`],
+    [sgn(sp.Other.now), 'Other P&L', `everything else · ${sp.Other.n} rows${(() => { const e = sp.Other.rows.filter(r => r.type === 'expense').reduce((a, r) => a + (r.out || 0), 0); return e ? ` · expenses ${money(e)}` : ''; })()}`],
+    ...(gr.n ? [[sgn(gr.net), 'Grading P&L', `${gr.n} card${gr.n === 1 ? '' : 's'} · uplift ${sgn(gr.up)} · fees ${money(gr.fee)}`]] : []),
   ];
-  const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit', 'Target', 'Cardmarket', 'Other'];
+  const keys = ['value', 'unreal', 'month', 'cost', 'spent', 'transit', 'Target', 'Cardmarket', 'Other', 'grading'];
   $('overview').innerHTML = tiles.map(([v, l, s], i) => `<div class="t" onclick="explainTile('${keys[i]}')" title="click for the math"><div class="v">${v}</div><div class="l">${l}${filtered ? ' <span class="accent">· filtered</span>' : ''}</div>${s ? `<div class="s dim">${s}</div>` : ''}</div>`).join('') + gameBar() + regionBar();
   $('ovmini').innerHTML = `<span>Value <b>${money(t.value)}</b></span><span>Gain ${sgn(t.unreal)}</span><span>Day ${sgn(t.day * valueRate())}</span><span>Cost <b>${money(t.cost)}</b></span>`;
 }
@@ -1103,11 +1110,16 @@ function explainTile(key) {
     const b = sourcePnl(items)[key], purchases = b.rows.filter(r => r.type === 'purchase' || r.dir === 'in'), rest = b.rows.filter(r => r.type !== 'purchase' && r.dir !== 'in');
     title = key + ' P&L';
     lines = key === 'Other'
-      ? [['Purchases from every other source: value @' + pctS + ' now − paid', sg(purchases.reduce((a, r) => a + (r.profit || 0), 0))], ['Sales, gifts, transfers and trades: received − value @' + pctS + ' when they left', sg(rest.filter(r => r.type !== 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['Openings: contents − sealed value @' + pctS, sg(rest.filter(r => r.type === 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['= Other P&L', sg(b.now), 'total']]
+      ? [['Purchases from every other source: value @' + pctS + ' now − paid', sg(purchases.reduce((a, r) => a + (r.profit || 0), 0))], ['Expenses (supplies, table fees): money out with nothing in stock', sg(-rest.filter(r => r.type === 'expense').reduce((a, r) => a + (r.out || 0), 0))], ['Sales, gifts, transfers and trades: received − value @' + pctS + ' when they left', sg(rest.filter(r => r.type !== 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['Openings: contents − sealed value @' + pctS, sg(rest.filter(r => r.type === 'open').reduce((a, r) => a + (r.pnl || 0), 0))], ['= Other P&L', sg(b.now), 'total']]
       : [[`${key} orders (dated up to today)`, b.n], ['Paid, tax included', money(b.paid)], [`Worth now: units × market × ${pctS}`, money(b.valNow)], [`= ${key} P&L`, sg(b.now), 'total'], [`Worth on the day bought (price history)`, money(b.valThen)], ['= bought-day P&L', sg(b.then)], ['Units bought are valued whether or not they have since sold or been opened; what happened after is in Other', '']];
     const rs = b.rows.slice().sort((a, b2) => (b2.date || '').localeCompare(a.date || ''));
     const [rows, more] = topN(rs, 40);
     table = mathTable(['Date', 'Type', 'What', 'Units#', 'Paid / in#', 'Worth now#', 'P&L now#', 'Bought-day / P&L#'], rows.map(r => [esc(r.date), r.type === 'purchase' ? esc(r.src || 'purchase') : r.dir === 'in' ? 'bought from ' + esc(r.who) : r.type, esc(r.type === 'purchase' ? (r.ref ? `${r.vendor ? r.vendor + ' · ' : ''}${r.ref}` : displayName(r.lots[0])) : r.ref), r.units, money(r.out != null ? r.out : r.inn || 0), r.valNow != null ? money(r.valNow) : '—', r.out != null ? (r.profit != null ? sg(r.profit) : '—') : (r.pnl != null ? sg(r.pnl) : '—'), r.pnl != null ? sg(r.pnl) : '—']), more);
+  } else if (key === 'grading') {
+    const g = gradingPnl(items);
+    title = 'Grading P&L';
+    lines = [['Cards sent for grading that are back or assumed graded', g.n], [`Uplift: (graded value − raw value) × ${pctS}, per unit on hand`, sg(g.up)], ['− grading fees (service + a share of kit and shipping)', money(g.fee)], ['= Grading P&L', sg(g.net), 'total'], ['The fee is also in each card\'s cost basis, so Unrealized gain already nets it; this tile isolates whether grading paid for itself', '']];
+    table = mathTable(['Card', 'Raw#', 'Graded#', 'Uplift @' + pctS + '#', 'Fee#', 'Net#'], g.rows.sort((a, b) => b.net - a.net).map(r => [esc(displayName(r.it)), money(r.raw), money(r.now), sg(r.up), money(r.fee), sg(r.net)]));
   } else if (key === 'transit') {
     title = `In transit @${pctS}`;
     lines = [['Units still marked incoming', t.incomingUnits], ['Their cost', money(t.incomingCost)], [`Their value: units × market × ${pctS} (unpriced count nothing)`, money(t.incomingValue), 'total']];
